@@ -1,0 +1,18 @@
+# This is a sample custom language file. 
+# To use this, run the program with the flag:
+# --langFile="/path/to/this/lang.en.toml"
+
+# Messages
+Success = "ᛖᚢᛖᚱᛁᚦᛁᛜ ᛁᚾ ᛟᚱᛞᛖᚱ. ᚲᛚᛟᚢᛞᛊ ᛒᛖ ᛈᚱᚨᛁᛊᛖᛞ!"
+Fail = "ᛏᚺᛖᚱᛖ ᚹᛖᚱᛖ ᛊᛟᛗᛖ ᛁᛊᛊᚢᛖᛊ."
+FailedTransferNum = "ᚠᚨᛁᛚᛖᛞ ᛏᚱᚨᚾᛊᚠᛖᚱᛊ: {{.Failed}}"
+FailedPreNum = "ᚠᚨᛁᛚᛖᛞ ᛈᚱᛖ-ᛏᚱᚨᚾᛊᚠᛖᚱ ᚲᛟᛗᛗᚨᚾᛞᛊ: {{.Failed}}"
+FailedPostNum = "ᚠᚨᛁᛚᛖᛞ ᛈᛟᛊᛏ-ᛏᚱᚨᚾᛊᚠᛖᚱ ᚲᛟᛗᛗᚨᚾᛞᛊ: {{.Failed}}"
+
+# Errors
+ErrorGeneric = "{{.Message}}"
+ErrorCmdInvalid = "'{{.Source}}' - ᚹᚺᚨᛏ ᛞᛟᛖᛊ ᚦᛁᛊ ᛗᛖᚾ?"
+ErrorCmdFailed = "'{{.Source}}' - {{.Message}}"
+ErrorPath = "'{{.Source}}' - {{.Message}}"
+ErrorUpload = "'{{.Source}}' - {{.Message}}"
+ErrorDownload = "'{{.Source}}' - {{.Message}}"
