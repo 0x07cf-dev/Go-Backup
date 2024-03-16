@@ -1,0 +1,14 @@
+# Messages
+Success = "Tutto secondo i piani. Lode alle nuvole!"
+Fail = "Ho avuto qualche problema."
+FailedTransferNum = "Trasferimenti falliti: {{.Failed}}"
+FailedPreNum = "Comandi pre-falliti: {{.Failed}}"
+FailedPostNum = "Comandi post-falloidi: {{.Failed}}"
+
+# Errors
+ErrorGeneric = "Completamente a caso - {{.Message}}"
+ErrorCmdInvalid = "'{{.Source}}' - cazzo vordì???"
+ErrorCmdFailed = "'{{.Source}}' - {{.Message}}"
+ErrorPath = "'{{.Source}}' - {{.Message}}"
+ErrorUpload = "'{{.Source}}' - {{.Message}}"
+ErrorDownload = "'{{.Source}}' - {{.Message}}"

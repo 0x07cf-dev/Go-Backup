@@ -1,0 +1,14 @@
+# Messages
+Success = "Everything is in order. Clouds be praised!"
+Fail = "Some errors were encountered."
+FailedTransferNum = "Transfers Failed: {{.Failed}}"
+FailedPreNum = "Pre-transfer Commands Failed: {{.Failed}}"
+FailedPostNum = "Post-transfer Commands Failed: {{.Failed}}"
+
+# Errors
+ErrorGeneric = "{{.Message}}"
+ErrorCmdInvalid = "'{{.Source}}'"
+ErrorCmdFailed = "'{{.Source}}' - {{.Message}}"
+ErrorPath = "'{{.Source}}' - {{.Message}}"
+ErrorUpload = "'{{.Source}}' - {{.Message}}"
+ErrorDownload = "'{{.Source}}' - {{.Message}}"
