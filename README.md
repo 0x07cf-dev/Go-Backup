@@ -134,6 +134,7 @@ Contributions are welcome! Feel free to submit issues or pull requests.
 
 
 #### To-do:
+- Use cobra+viper
 - Better path/command parsing
 - Log rotation?
 - Other to-do's
