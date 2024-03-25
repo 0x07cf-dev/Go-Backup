@@ -46,7 +46,6 @@ func Initialize(path string, logLevel LogLevel) {
 
 	debugLogger = log.New(out, "[DEBUG] ", flags)
 	infoLogger = log.New(out, "[INFO] ", flags)
-	infoLogger.SetOutput(out)
 	warnLogger = log.New(out, "[WARN] ", flags)
 	errorLogger = log.New(out, "[ERROR] ", flags)
 	LogPath = path
