@@ -27,7 +27,7 @@ To configure Go-Backup, you first need to run it so that the default configurati
 
 Now you can edit the config file. *Do not modify the hostname!* Ensure you provide the appropriate paths and commands for pre and post-transfer operations.
 
-You can use the same configuration file for as many devices as you'd like,
+You can use the same configuration file for as many devices as you'd like.
 
 #### You can also use environment variables in your paths:
 
@@ -140,7 +140,6 @@ Contributions are welcome! Feel free to submit issues or pull requests.
 
 
 #### To-do:
-- Use cobra+viper
 - Better path/command parsing
 - Log rotation?
 - Other to-do's
