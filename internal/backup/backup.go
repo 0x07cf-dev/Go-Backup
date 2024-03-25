@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0x07cf-dev/go-backup/internal/lang"
+	"github.com/0x07cf-dev/go-backup/internal/config"
 	"github.com/0x07cf-dev/go-backup/internal/logger"
 	"github.com/0x07cf-dev/go-backup/internal/notify"
 	_ "github.com/rclone/rclone/backend/local"
@@ -16,8 +16,8 @@ import (
 )
 
 type BackupSession struct {
-	Config   *MachineConfig
 	Opts     *BackupOpts
+	Machine  *config.Machine
 	Notifier *notify.Notifier
 	// Internals
 	context   context.Context
@@ -26,16 +26,13 @@ type BackupSession struct {
 }
 
 type BackupOpts struct {
-	Remote         string
-	RemoteRoot     string
-	Uploading      bool
-	Simulate       bool
-	Interactive    bool
-	Debug          bool
-	EnvFilePath    string
-	ConfigFilePath string
-	LangFilePath   string
-	Languages      []string
+	Remote      string
+	RemoteRoot  string
+	Uploading   bool
+	Simulate    bool
+	Interactive bool
+	Debug       bool
+	Languages   []string
 }
 
 type BackupOptFunc func(*BackupOpts)
@@ -55,15 +52,13 @@ func defaultBackupOpts() *BackupOpts {
 	langs = append(langs, "en")
 
 	return &BackupOpts{
-		Remote:         "",
-		RemoteRoot:     "Backups",
-		Uploading:      true,
-		Simulate:       false,
-		Interactive:    true,
-		Debug:          false,
-		ConfigFilePath: "configs/config.json",
-		LangFilePath:   "lang.en.toml",
-		Languages:      langs,
+		Remote:      "",
+		RemoteRoot:  "Backups",
+		Uploading:   true,
+		Simulate:    false,
+		Interactive: true,
+		Debug:       false,
+		Languages:   langs,
 	}
 }
 
@@ -105,31 +100,7 @@ func WithDebug(debug bool) BackupOptFunc {
 	}
 }
 
-func WithEnvFile(path string) BackupOptFunc {
-	return func(opts *BackupOpts) {
-		if path != "" {
-			opts.EnvFilePath = path
-		}
-	}
-}
-
-func WithConfigFile(path string) BackupOptFunc {
-	return func(opts *BackupOpts) {
-		if path != "" {
-			opts.ConfigFilePath = path
-		}
-	}
-}
-
-func WithLangFile(path string) BackupOptFunc {
-	return func(opts *BackupOpts) {
-		if path != "" {
-			opts.LangFilePath = path
-		}
-	}
-}
-
-func WithLanguage(langs ...string) BackupOptFunc {
+func WithLanguages(langs ...string) BackupOptFunc {
 	return func(opts *BackupOpts) {
 		opts.Languages = langs
 	}
@@ -142,23 +113,14 @@ func NewSession(options ...BackupOptFunc) *BackupSession {
 		fn(opts)
 	}
 
-	// Load environment file
-	if err := loadEnvFile(opts.EnvFilePath); err != nil {
-		logger.Error("There was an error loading environment variables.")
-	}
-
 	// Load rclone config (if user didn't specify remote, it will be picked from it)
-	loadRemoteConfig(ctx, opts)
-
-	// Load language
-	lang.LoadLanguage(opts.LangFilePath, opts.Languages...)
+	config.ValidateRemote(ctx, &opts.Remote, opts.Interactive)
 
 	// Load current machine parameters from configuration
-	machineConfig, err := getMachineConfig(opts.ConfigFilePath)
+	machine, err := config.GetCurrentMachine()
 	if err != nil {
-		if machineConfig == nil {
-			logger.Fatal(err)
-		}
+		logger.Fatal(err)
+
 	}
 
 	// Load notifier parameters from environment
@@ -169,8 +131,8 @@ func NewSession(options ...BackupOptFunc) *BackupSession {
 	}
 
 	return &BackupSession{
-		Config:    machineConfig,
 		Opts:      opts,
+		Machine:   machine,
 		Notifier:  notifier,
 		context:   ctx,
 		processed: make(map[string]bool),
@@ -181,9 +143,9 @@ func (session *BackupSession) Backup() {
 	t0 := time.Now()
 	wg := sync.WaitGroup{}
 
-	numPaths := len(session.Config.Paths)
-	numPreCmds := len(session.Config.PreCommands)
-	numPostCmds := len(session.Config.PostCommands)
+	numPaths := len(session.Machine.Paths)
+	numPreCmds := len(session.Machine.Pre)
+	numPostCmds := len(session.Machine.Post)
 
 	if numPaths == 0 && numPreCmds == 0 && numPostCmds == 0 {
 		logger.Warn("Nothing to do. Please take a look at the configuration file.")
@@ -212,19 +174,19 @@ func (session *BackupSession) Backup() {
 	preErrCh := make(chan BackupError, numPreCmds)
 	if numPreCmds > 0 {
 		logger.Info("Executing pre-transfer commands...")
-		executeCmds(preErrCh, session.Config.PreCommands, session.Config.CmdOutput)
+		executeCmds(preErrCh, session.Machine.Pre, session.Machine.Output)
 	}
 	close(preErrCh)
 
 	// Spawn transfer goroutines
 	transferErrCh := make(chan BackupError, numPaths)
 	if session.Opts.Uploading {
-		for _, path := range session.Config.Paths {
+		for _, path := range session.Machine.Paths {
 			wg.Add(1)
 			go session.uploadPath(path, &wg, transferErrCh, session.Opts.Simulate)
 		}
 	} else {
-		for _, path := range session.Config.Paths {
+		for _, path := range session.Machine.Paths {
 			wg.Add(1)
 			go session.downloadPath(path, &wg, transferErrCh, session.Opts.Simulate)
 		}
@@ -238,7 +200,7 @@ func (session *BackupSession) Backup() {
 	postErrCh := make(chan BackupError, numPostCmds)
 	if numPostCmds > 0 {
 		logger.Info("Executing post-transfer commands...")
-		executeCmds(postErrCh, session.Config.PostCommands, session.Config.CmdOutput)
+		executeCmds(postErrCh, session.Machine.Post, session.Machine.Output)
 	}
 	close(postErrCh)
 
@@ -269,12 +231,12 @@ func (session *BackupSession) NotifyStatus(status string, statusTags ...string) 
 	if session.Notifier != nil {
 		msgTitle := fmt.Sprintf(
 			"%s - %s",
-			strings.ToUpper(session.Config.Hostname),
+			strings.ToUpper(session.Machine.Hostname),
 			strings.ToTitle(session.Notifier.Topic),
 		)
 		msgTags := make([]string, 0, len(statusTags)+2)
 		msgTags = append(msgTags, statusTags...)
-		msgTags = append(msgTags, session.Config.Hostname, session.Notifier.Topic)
+		msgTags = append(msgTags, session.Machine.Hostname, session.Notifier.Topic)
 
 		resp, err := session.Notifier.Send(msgTitle, status, msgTags)
 		if err != nil {
