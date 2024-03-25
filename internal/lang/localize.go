@@ -25,19 +25,22 @@ var (
 //go:embed lang.*.toml
 var langFS embed.FS
 
-func GetManager() *Translator {
+func GetTranslator() *Translator {
 	once.Do(func() {
 		instance = &Translator{}
 	})
 	return instance
 }
 
-func LoadLanguage(path string, langs ...string) {
+func LoadLanguages(langFile string, langs ...string) Translator {
 	// Default language is the first specified (english if none)
 	defaultLang := language.English
-	if len(langs) > 0 {
+	if len(langs) == 0 {
+		langs = append(langs, defaultLang.String())
+	} else if len(langs) > 0 {
 		defaultLang = language.Make(langs[0])
 	}
+
 	logger.Infof("Available languages: %v (default: %s)", langs, defaultLang)
 
 	// Create a bundle to use for the program's lifetime
@@ -45,23 +48,22 @@ func LoadLanguage(path string, langs ...string) {
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 
 	// Load translations into bundle
-	loadDefaults := false
-	if path != "" {
+	loadEmbedded := false
+	if langFile != "" {
 		// Load custom language file
-		_, err := bundle.LoadMessageFile(path)
+		_, err := bundle.LoadMessageFile(langFile)
 		if err != nil {
-			logger.Errorf("Error loading custom language file (%s): %s", path, err.Error())
-			loadDefaults = true
+			logger.Errorf("Error loading custom language file (%s): %s", langFile, err.Error())
+			loadEmbedded = true
 		} else {
-			logger.Infof("Loading custom messages: %s", path)
+			logger.Infof("Loading custom messages: %s", langFile)
 		}
 	} else {
-		loadDefaults = true
+		loadEmbedded = true
 	}
 
-	if loadDefaults {
+	if loadEmbedded {
 		// Load embedded language files
-		// langDir := filepath.Dir(path)
 		for _, lang := range langs { //[1:] {
 			langFile := fmt.Sprintf("lang.%s.toml", lang)
 			_, err := bundle.LoadMessageFileFS(langFS, langFile) //filepath.Join(langDir, langFile))
@@ -72,15 +74,17 @@ func LoadLanguage(path string, langs ...string) {
 	}
 
 	// Create a Localizer to use for a set of language preferences
-	lm := GetManager()
-	lm.Bundle = bundle
-	lm.Localizer = i18n.NewLocalizer(bundle, langs...)
-	lm.Langs = langs
+	tr := GetTranslator()
+	tr.Bundle = bundle
+	tr.Localizer = i18n.NewLocalizer(bundle, langs...)
+	tr.Langs = langs
+	return *tr
 }
 
 func (lm Translator) Localize(messageID string, langs ...string) string {
 	res, err := lm.Localizer.Localize(&i18n.LocalizeConfig{MessageID: messageID})
 	if err != nil {
+		logger.Error(err, langs)
 		res = messageID
 	}
 	return res
@@ -92,6 +96,7 @@ func (lm Translator) LocalizeTemplate(messageID string, template map[string]stri
 		TemplateData: template,
 	})
 	if err != nil {
+		logger.Error(err, langs)
 		res = messageID
 	}
 	return res

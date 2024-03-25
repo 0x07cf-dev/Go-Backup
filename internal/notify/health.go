@@ -25,14 +25,14 @@ type HealthMonitor struct {
 
 var monitorParams = map[HealthMonitors]HealthMonitor{
 	HealthChecksIO: {
-		ID:        "HEALTHCHECKS_ID",
+		ID:        "NTFY_HEALTHCHECKS",
 		Host:      "hc-ping.com",
 		Path:      "",
 		Method:    "POST",
 		withEndpt: true,
 	},
 	BetterUptime: {
-		ID:        "BETTERUPTIME_ID",
+		ID:        "NTFY_BETTERUPTIME",
 		Host:      "uptime.betterstack.com",
 		Path:      "api/v1/heartbeat",
 		Method:    "GET",

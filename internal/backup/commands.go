@@ -83,7 +83,7 @@ func parseCommand(command string) (*exec.Cmd, error) {
 	// TODO: fix %VARS% not working
 	logger.Debugf("Command: %s || Command Env: %v", systemCmd, systemCmd.Env)
 	systemCmd.Env = os.Environ()
-	systemCmd.Env = append(systemCmd.Env, "MY_VAR=some_value") // this works
+	//systemCmd.Env = append(systemCmd.Env, "MY_VAR=some_value")
 	return systemCmd, nil
 }
 

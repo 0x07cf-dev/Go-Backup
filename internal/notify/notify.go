@@ -26,11 +26,11 @@ func NewNotifierFromEnv() (*Notifier, error) {
 	topic := os.Getenv("NTFY_TOPIC")
 	token := os.Getenv("NTFY_TOKEN")
 
-	// Append health monitors defined in environment
+	// Find all health monitors defined in environment
 	var monitors []HealthMonitors
 	var monitorEnvVars = map[string]HealthMonitors{
-		"HEALTHCHECKS_ID": HealthChecksIO,
-		"BETTERUPTIME_ID": BetterUptime,
+		"NTFY_HEALTHCHECKS": HealthChecksIO,
+		"NTFY_BETTERUPTIME": BetterUptime,
 	}
 	for envVar, monitor := range monitorEnvVars {
 		if m, ok := os.LookupEnv(envVar); ok {
@@ -64,7 +64,7 @@ func (notifier *Notifier) SendHeartbeats(endpoint string, withLog bool) (string,
 	errCh := make(chan error, len(notifier.HealthMonitors))
 
 	for _, mon := range notifier.HealthMonitors {
-		// Healthchecks allows to POST the log file
+		// POST log file
 		var buf bytes.Buffer
 		if withLog && monitorParams[mon].Method == "POST" {
 			file, err := os.Open(logger.LogPath)

@@ -47,25 +47,9 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 	}
 	session.processed[path] = true
 
-	currFile, err := os.Stat(path)
-	if err != nil {
-		errCh <- PathError.Error(path, err.Error())
-		return
-	}
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		errCh <- PathError.Error(path, err.Error())
-		return
-	}
-	parent, _, err := rc_fspath.Split(path)
-	if err != nil {
-		errCh <- PathError.Error(path, err.Error())
-		return
-	}
-
 	if simulate {
-		// totally valid and human errors
-		errorChance := 0.2
+		// totally valid human-readable errors
+		errorChance := 0.1
 		if rand.Float32() < float32(errorChance) {
 			var syllables []string
 			vowels := []rune{'a', 'e', 'i', 'o', 'u'}
@@ -93,31 +77,43 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 		}
 	}
 
-	// Remote needs to end with ':'
-	rem := session.Opts.Remote
-	if !strings.HasSuffix(rem, ":") {
-		rem += ":"
+	currFile, err := os.Stat(path)
+	if err != nil {
+		errCh <- PathError.Error(path, err.Error())
+		return
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		errCh <- PathError.Error(path, err.Error())
+		return
+	}
+	parent, _, err := rc_fspath.Split(path)
+	if err != nil {
+		errCh <- PathError.Error(path, err.Error())
+		return
 	}
 
 	// This is a naive approach that simply copies the files/dirs over, overwriting.
-	logger.Infof("Uploading: '%s'", path)
 	if currFile.IsDir() {
 		// Upload directory
-		illegal, err := regexp.Compile(`[|<>?\/:*"]`)
+		logger.Infof("Uploading: '%s'", path)
+		logger.Infof("PARENT: %s", parent)
+
+		/*remoteRoot := rc_fspath.JoinRootPath(
+			rem,
+			filepath.Join(
+				session.Opts.RemoteRoot,
+				session.Machine.Hostname,
+				absPath,
+			),
+		)*/
+
+		remoteRoot, err := session.getRemotePath(absPath)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
 		}
-
-		cleanPath := illegal.ReplaceAllString(path, "")
-		remoteRoot := rc_fspath.JoinRootPath(
-			rem,
-			filepath.Join(
-				session.Opts.RemoteRoot,
-				session.Config.Hostname,
-				cleanPath,
-			),
-		)
+		logger.Debugf("DIR ROOT: %s", remoteRoot)
 
 		destFs, err := initFs(session.context, remoteRoot)
 		if err != nil {
@@ -133,25 +129,33 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 		// Upload
 		if !simulate {
 			if err = rc_sync.CopyDir(session.context,
-				destFs, // Upload dir destination: remoteRoot/hostname/sourceDirName/...
-				srcFs,  // Upload dir source: as defined in config
-				true,   // Copy empty dirs?
+				destFs,
+				srcFs,
+				true, // Copy empty dirs?
 			); err != nil {
 				errCh <- UploadError.Error(path, err.Error())
 				return
 			}
 		} else {
-			logger.Infof("Simulated: '%s' --> '%s'", srcFs, destFs)
+			logger.Infof("Simulated dir: '%s' --> '%s'", srcFs.Root(), destFs.Root())
 		}
 	} else {
 		// Upload file
-		remoteRoot := rc_fspath.JoinRootPath(
+		remoteRoot, err := session.getRemotePath(parent)
+		if err != nil {
+			errCh <- UploadError.Error(path, err.Error())
+			return
+		}
+		logger.Debugf("FILE ROOT: %s", remoteRoot)
+
+		/*rc_fspath.JoinRootPath(
 			rem,
 			filepath.Join(
 				session.Opts.RemoteRoot,
-				session.Config.Hostname,
+				session.Machine.Hostname,
+				parent,
 			),
-		)
+		)*/
 
 		destFs, err := initFs(session.context, remoteRoot)
 		if err != nil {
@@ -164,6 +168,7 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 			return
 		}
 
+		// Upload
 		if !simulate {
 			if err = rc_ops.CopyFile(
 				session.context,
@@ -176,11 +181,34 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 				return
 			}
 		} else {
-			logger.Infof("Simulated: '%s' --> '%s'", filepath.Join(srcFs.Root(), currFile.Name()), destFs)
+			logger.Infof("Simulated file: '%s' --> '%s'", filepath.Join(srcFs.Root(), currFile.Name()), destFs.String())
 		}
 	}
 
 	logger.Infof("UPLOADED! (%v)\n", time.Since(t0))
+}
+
+func (session *BackupSession) getRemotePath(path string) (string, error) {
+	// Remote needs to end with ':'
+	remote := session.Opts.Remote
+	if !strings.HasSuffix(remote, ":") {
+		remote += ":"
+	}
+
+	illegal, err := regexp.Compile(`[|<>?:*"]`)
+	if err != nil {
+		return "", err
+	}
+	cleanPath := illegal.ReplaceAllString(path, "")
+	cleanPath = rc_fspath.JoinRootPath(
+		remote,
+		filepath.Join(
+			session.Opts.RemoteRoot,
+			session.Machine.Hostname,
+			cleanPath,
+		),
+	)
+	return cleanPath, nil
 }
 
 // not gonna happen for a while
