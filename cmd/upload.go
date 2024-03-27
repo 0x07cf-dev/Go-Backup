@@ -24,34 +24,21 @@ import (
 // TODO uploadCmd represents the upload command
 var uploadCmd = &cobra.Command{
 	Use:   "upload",
-	Short: "A brief description of your command",
+	Short: "Transfers from the machine to the remote",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Args: func(cmd *cobra.Command, args []string) error {
-		if err := cobra.MinimumNArgs(1)(cmd, args); err != nil {
-			return err
-		}
-		if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
-			return err
-		}
-		// Run the custom validation logic
-		//if myapp.IsValidColor(args[0]) {
-		//	return nil
-		//}
-		return nil // fmt.Errorf("invalid remote specified: %s", args[0])
-	},
+	Args: remoteArg,
 	Run: func(cmd *cobra.Command, args []string) {
-		session := backup.NewSession(
+		session := backup.NewSession(ctx,
 			backup.WithRemote(args[0]),
 			backup.WithRemoteRoot(root),
 			backup.WithSimulation(simulate),
 			backup.WithInteractivity(interactive),
 			backup.WithDebug(debug),
-			//backup.WithConfigFile(ConfigFile),
 			backup.WithLanguages(languages...),
 		)
 		session.Backup()

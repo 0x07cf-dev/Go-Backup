@@ -49,7 +49,7 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 
 	if simulate {
 		// totally valid human-readable errors
-		errorChance := 0.1
+		errorChance := 0.3
 		if rand.Float32() < float32(errorChance) {
 			var syllables []string
 			vowels := []rune{'a', 'e', 'i', 'o', 'u'}
@@ -96,24 +96,13 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 	// This is a naive approach that simply copies the files/dirs over, overwriting.
 	if currFile.IsDir() {
 		// Upload directory
-		logger.Infof("Uploading: '%s'", path)
-		logger.Infof("PARENT: %s", parent)
-
-		/*remoteRoot := rc_fspath.JoinRootPath(
-			rem,
-			filepath.Join(
-				session.Opts.RemoteRoot,
-				session.Machine.Hostname,
-				absPath,
-			),
-		)*/
-
+		logger.Infof("---------- UPLOADING DIR ----------")
 		remoteRoot, err := session.getRemotePath(absPath)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
 		}
-		logger.Debugf("DIR ROOT: %s", remoteRoot)
+		logger.Infof("%s >>> %s", path, remoteRoot)
 
 		destFs, err := initFs(session.context, remoteRoot)
 		if err != nil {
@@ -136,26 +125,16 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 				errCh <- UploadError.Error(path, err.Error())
 				return
 			}
-		} else {
-			logger.Infof("Simulated dir: '%s' --> '%s'", srcFs.Root(), destFs.Root())
 		}
 	} else {
 		// Upload file
+		logger.Infof("---------- UPLOADING FILE ---------")
 		remoteRoot, err := session.getRemotePath(parent)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
 		}
-		logger.Debugf("FILE ROOT: %s", remoteRoot)
-
-		/*rc_fspath.JoinRootPath(
-			rem,
-			filepath.Join(
-				session.Opts.RemoteRoot,
-				session.Machine.Hostname,
-				parent,
-			),
-		)*/
+		logger.Infof("%s >>> %s", path, remoteRoot)
 
 		destFs, err := initFs(session.context, remoteRoot)
 		if err != nil {
@@ -180,12 +159,11 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 				errCh <- UploadError.Error(path, err.Error())
 				return
 			}
-		} else {
-			logger.Infof("Simulated file: '%s' --> '%s'", filepath.Join(srcFs.Root(), currFile.Name()), destFs.String())
 		}
 	}
 
-	logger.Infof("UPLOADED! (%v)\n", time.Since(t0))
+	logger.Infof("---------- DONE! (%v) ----------", time.Since(t0).Truncate(2))
+	logger.Info("")
 }
 
 func (session *BackupSession) getRemotePath(path string) (string, error) {

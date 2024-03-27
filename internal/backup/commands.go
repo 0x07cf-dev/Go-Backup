@@ -2,15 +2,12 @@ package backup
 
 import (
 	"bytes"
-	"os"
-	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/0x07cf-dev/go-backup/internal/logger"
-	"golang.org/x/sys/windows/registry"
+	"github.com/0x07cf-dev/go-backup/internal/utils"
 )
 
 type CmdFunc func(chan BackupError, string) string
@@ -36,7 +33,7 @@ func executeCmds(errCh chan BackupError, commands []string, output bool) {
 		}
 
 		// Otherwise, execute it on the system
-		systemCmd, err := parseCommand(command)
+		systemCmd, err := utils.ParseCommand(command)
 		if err != nil {
 			errCh <- CmdInvalid.Error(command, "could not parse command")
 			continue
@@ -63,28 +60,6 @@ func executeCmds(errCh chan BackupError, commands []string, output bool) {
 	}
 
 	time.Sleep(1 * time.Second)
-}
-
-func parseCommand(command string) (*exec.Cmd, error) {
-	// Expand environment variables
-	command, err := registry.ExpandString(command)
-	if err != nil {
-		return nil, err
-	}
-
-	var systemCmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		systemCmd = exec.Command("cmd.exe", "/C", command)
-	default:
-		systemCmd = exec.Command("sh", "-c", command)
-	}
-
-	// TODO: fix %VARS% not working
-	logger.Debugf("Command: %s || Command Env: %v", systemCmd, systemCmd.Env)
-	systemCmd.Env = os.Environ()
-	//systemCmd.Env = append(systemCmd.Env, "MY_VAR=some_value")
-	return systemCmd, nil
 }
 
 func cmdSleep(errCh chan BackupError, command string) string {

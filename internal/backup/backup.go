@@ -106,15 +106,14 @@ func WithLanguages(langs ...string) BackupOptFunc {
 	}
 }
 
-func NewSession(options ...BackupOptFunc) *BackupSession {
-	ctx := context.Background()
+func NewSession(ctx context.Context, options ...BackupOptFunc) *BackupSession {
 	opts := defaultBackupOpts()
 	for _, fn := range options {
 		fn(opts)
 	}
 
 	// Load rclone config (if user didn't specify remote, it will be picked from it)
-	config.ValidateRemote(ctx, &opts.Remote, opts.Interactive)
+	// config.ValidateRemote(ctx, &opts.Remote, opts.Interactive)
 
 	// Load current machine parameters from configuration
 	machine, err := config.GetCurrentMachine()
@@ -154,16 +153,16 @@ func (session *BackupSession) Backup() {
 
 	// Ternary operator is sometimes useful :(
 	var sb strings.Builder
-	sb.WriteString("Initializing ")
+	sb.WriteString("INITIALIZING ")
 	if session.Opts.Uploading {
-		sb.WriteString("upload ")
+		sb.WriteString("UPLOAD ")
 	} else {
-		sb.WriteString("download ")
+		sb.WriteString("DOWNLOAD ")
 	}
 	if session.Opts.Simulate {
-		sb.WriteString("simulation...")
+		sb.WriteString("SIMULATION ")
 	} else {
-		sb.WriteString("session...")
+		sb.WriteString("SESSION ")
 	}
 	sb.WriteString(fmt.Sprintf("(%s)", session.Opts.Remote))
 	logger.Info(sb.String())
