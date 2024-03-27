@@ -33,7 +33,7 @@ func Initialize(path string, logLevel LogLevel) {
 	if path != "" {
 		abs, err := filepath.Abs(path)
 		if err == nil {
-			logFile, err := os.OpenFile(abs, os.O_CREATE|os.O_WRONLY, 0644)
+			logFile, err := os.OpenFile(abs, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 			if err == nil {
 				fileWriter = logFile
 				LogPath = abs

@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"sync"
 
+	rc_fs "github.com/rclone/rclone/fs"
 	rc_config "github.com/rclone/rclone/fs/config"
 	rc_configfile "github.com/rclone/rclone/fs/config/configfile"
 
 	"github.com/0x07cf-dev/go-backup/internal/logger"
+	"github.com/0x07cf-dev/go-backup/internal/utils"
 	"github.com/spf13/viper"
-	"golang.org/x/sys/windows/registry"
 )
 
 var Global *GlobalConfig
@@ -81,7 +81,7 @@ func GetCurrentMachine() (*Machine, error) {
 
 	// Manipulate paths before use
 	for i, p := range current.Paths {
-		expanded, err := cleanPath(p)
+		expanded, err := utils.CleanPath(p)
 		if err != nil {
 			return nil, err
 		}
@@ -103,67 +103,45 @@ func GetCurrentMachine() (*Machine, error) {
 	return current, nil
 }
 
-func cleanPath(p string) (string, error) {
-	logger.Debugf("Path before: '%s'", p)
-
-	// Expand environment variables (both $UNIX and %WINDOWS%)
-	res, err := registry.ExpandString(p)
-	if err != nil {
-		return "", err
-	}
-
-	// Clean
-	res = path.Clean(res)
-	logger.Debugf("Path after: '%s'", res)
-	return res, nil
-}
-
-func ValidateRemote(ctx context.Context, remote *string, interactive bool) {
+func ValidateRemote(ctx context.Context, remote string, interactive bool) (string, error) {
 	var once sync.Once
 	once.Do(func() {
 		rc_configfile.Install()
-		// rc_config.ShowConfigLocation()
+		// Silence rclone
+		conf := rc_fs.GetConfig(ctx)
+		conf.LogLevel = rc_fs.LogLevelWarning
+		conf.MultiThreadSet = true
 	})
 
 	available := rc_config.FileSections()
-	found := false
+	if len(available) == 0 {
+		if !interactive {
+			return "", fmt.Errorf("no remote exists")
+		}
 
+		logger.Info("No remotes found. You need to create one:")
+		name := rc_config.NewRemoteName()
+		err := rc_config.NewRemote(ctx, name)
+		if err != nil {
+			return "", err
+		}
+		return name, nil
+	}
+
+	// Check if specified remote is defined in rclone's config
 	for i, r := range available {
 		logger.Debugf("%d: %s", i+1, r)
-		if r == *remote {
-			found = true
+		if r == remote {
+			return r, nil
 		}
 	}
 
-	// No user-specified remote or no remotes to choose from
-	if !found {
-		chooseRemote := func() (string, error) {
-			if len(available) > 0 {
-				if !interactive {
-					return available[0], nil
-				}
-
-				logger.Info("The remote specified doesn't exist. You need to choose one:")
-				return rc_config.ChooseRemote(), nil
-			} else {
-				if !interactive {
-					return "", fmt.Errorf("no remote exists")
-				}
-
-				logger.Info("No remotes found. You need to create one:")
-				name := rc_config.NewRemoteName()
-				err := rc_config.NewRemote(ctx, name)
-				if err != nil {
-					return "", err
-				}
-				return name, nil
-			}
-		}
-
-		rem, err := chooseRemote()
-		if err != nil {
-			logger.Fatalf("The program cannot operate without a remote: %s", err.Error())
-		}
-		remote = &rem
+	// Some remotes are defined, but the specified one isn't
+	if !interactive {
+		logger.Debug("Session is non-interactive: picking first available remote.")
+		return available[0], nil
+	} else {
+		logger.Infof("The specified remote (%s) doesn't exist. You need to choose one:", remote)
+		return rc_config.ChooseRemote(), nil
 	}
 }

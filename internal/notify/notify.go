@@ -33,9 +33,8 @@ func NewNotifierFromEnv() (*Notifier, error) {
 		"NTFY_BETTERUPTIME": BetterUptime,
 	}
 	for envVar, monitor := range monitorEnvVars {
-		if m, ok := os.LookupEnv(envVar); ok {
+		if _, ok := os.LookupEnv(envVar); ok {
 			monitors = append(monitors, monitor)
-			logger.Debugf("%s = %s", envVar, m)
 		}
 	}
 
