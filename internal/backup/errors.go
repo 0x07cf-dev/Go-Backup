@@ -90,7 +90,7 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 		if totalFailRate > 0 {
 			str := lang.GetTranslator().Localize("Fail", langs...)
 			status.WriteString(str + "\n")
-			logger.Error(str)
+			logger.Warn(str)
 		}
 
 		if totalFailRate > 98 {
@@ -107,12 +107,12 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 					"Failed": fmt.Sprintf("%d%%", transferFailRate),
 				}, langs...)
 				status.WriteString(str + "\n")
-				logger.Error(str)
+				logger.Warn(str)
 			}
 			for i, err := range transferErrors {
 				str := fmt.Sprintf("%d° | %s\n", i+1, err.Localize(langs...))
 				status.WriteString(str)
-				logger.Error(str)
+				logger.Warn(str)
 			}
 		}
 
@@ -123,12 +123,12 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 				"Failed": strconv.Itoa(failedPre),
 			}, langs...)
 			status.WriteString(str + "\n")
-			logger.Error(str)
+			logger.Warn(str)
 
 			for i, err := range preErrors {
 				s := fmt.Sprintf("%d° | %s\n", i+1, err.Localize(langs...))
 				status.WriteString(s)
-				logger.Error(s)
+				logger.Warn(s)
 			}
 		}
 
@@ -139,12 +139,12 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 				"Failed": strconv.Itoa(failedPost),
 			}, langs...)
 			status.WriteString(str + "\n")
-			logger.Error(str)
+			logger.Warn(str)
 
 			for i, err := range postErrors {
-				s := fmt.Sprintf("%d° | %s\n", i+1, err.Localize(langs...))
+				s := fmt.Sprintf("%d° | %s", i+1, err.Localize(langs...))
 				status.WriteString(s)
-				logger.Error(s)
+				logger.Warn(s)
 			}
 		}
 

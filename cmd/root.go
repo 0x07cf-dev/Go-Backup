@@ -17,6 +17,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -28,6 +29,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+var ctx context.Context
 
 var configFile string
 var envFile string
@@ -46,8 +49,8 @@ var root string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "go-backup",
-	Short: "A brief description of your application",
-	Long: `Go-Backup is a simple utility written in Go that uses rclone to transfer files to a remote destination.
+	Short: "Simple backup utility",
+	Long: `Go-Backup is a simple backup utility written in Go that uses rclone to transfer files to a remote destination.
 
 It follows a .json configuration in which you can define custom behaviour for each device you run it on.
 You can specify which directories and/or files to transfer, along with pre and/or post-transfer commands to be executed on the machine.
@@ -56,6 +59,21 @@ It can optionally be configured to send status notifications to the user via [nt
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
+}
+
+func remoteArg(cmd *cobra.Command, args []string) error {
+	if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
+		return err
+	}
+	// Run the custom validation logic
+	var remote string
+	if err := cobra.MinimumNArgs(1)(cmd, args); err == nil {
+		remote = args[0]
+	}
+	if _, err := config.ValidateRemote(ctx, remote, interactive); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -89,6 +107,8 @@ func init() {
 }
 
 func initConfig() {
+	ctx = context.Background()
+
 	// Initialize logging
 	logLevel := logger.InfoLevel
 	if debug {
@@ -144,7 +164,7 @@ func initConfig() {
 			logger.Info("Using environment file:", envFile)
 			envfound = true
 		} else {
-			logger.Errorf("There was an error loading environment file: %v", err)
+			logger.Infof("Not using environment file: %s", err.Error())
 		}
 	}
 
