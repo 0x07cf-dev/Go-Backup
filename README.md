@@ -1,11 +1,11 @@
 # Go-Backup
+###### This is how I chose to learn Go. Even I am afraid of using it.
 
 Go-Backup is a simple utility written in Go that uses rclone to transfer files to a remote WebDAV destination.
 
 It follows a .json configuration in which you can define custom behaviour for each device you run it on. You can specify which directories and/or files to transfer, along with pre and/or post-transfer commands to be executed on each machine.
 
 It can optionally be configured to send status notifications to the user via [ntfy.sh](https://ntfy.sh/app), and/or heartbeat signals to external uptime monitoring services in order to keep track of non-interactive executions.
-###### This is how I chose to learn Go. 
 
 ## Configuration
 
