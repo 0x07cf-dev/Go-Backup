@@ -7,6 +7,8 @@ It follows a .json configuration in which you can define custom behaviour for ea
 
 It can optionally be configured to send status notifications to the user via [ntfy.sh](https://ntfy.sh/app), and/or heartbeat signals to external uptime monitoring services in order to keep track of non-interactive executions.
 
+##### Supported backends: WebDAV, Drive, Dropbox, S3-compliant storage services.
+
 ## Configuration
 
 To configure Go-Backup, you first need to run it so that the default configuration is generated:
@@ -109,7 +111,7 @@ NTFY_BETTERUPTIME=abcdefghijklmnopqrstuvwxyz
 
 | Category   | Flag            | Shorthand | Description |
 |------------|-----------------|-----------|-------------|
-| Execution  | --interactive  | -i        | Set this to false to skip user input. Required to run via CRON/automatically. |
+| Execution  | --unattended   | -u        | Set this to false to skip user input. Required to run via CRON/automatically. |
 |            | --simulate     | -s        | Set whether the backup session should be simulated. |
 |            | --debug        |           | Enables debug mode. |
 |            |                |           | |

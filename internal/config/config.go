@@ -64,7 +64,7 @@ func GetCurrentMachine() (*Machine, error) {
 	// Check if current machine is configured
 	modified := false
 	if current != nil {
-		logger.Infof("Found machine in config: %s", hostname)
+		logger.Debugf("Found machine in config: %s", hostname)
 	} else {
 		logger.Info("Current machine is not configured.")
 		current = &Machine{
@@ -103,23 +103,24 @@ func GetCurrentMachine() (*Machine, error) {
 	return current, nil
 }
 
-func ValidateRemote(ctx context.Context, remote string, interactive bool) (string, error) {
+func ValidateRemote(ctx context.Context, remote string, unattended bool) (string, error) {
 	var once sync.Once
 	once.Do(func() {
 		rc_configfile.Install()
-		// Silence rclone
+		// Silence, rclone!
 		conf := rc_fs.GetConfig(ctx)
 		conf.LogLevel = rc_fs.LogLevelWarning
 		conf.MultiThreadSet = true
 	})
 
+	// If no remotes are configured, summon the wizard
 	available := rc_config.FileSections()
 	if len(available) == 0 {
-		if !interactive {
+		if unattended {
 			return "", fmt.Errorf("no remote exists")
 		}
 
-		logger.Info("No remotes found. You need to create one:")
+		logger.Info("You don't have any remote configured.")
 		name := rc_config.NewRemoteName()
 		err := rc_config.NewRemote(ctx, name)
 		if err != nil {
@@ -129,19 +130,30 @@ func ValidateRemote(ctx context.Context, remote string, interactive bool) (strin
 	}
 
 	// Check if specified remote is defined in rclone's config
-	for i, r := range available {
-		logger.Debugf("%d: %s", i+1, r)
-		if r == remote {
-			return r, nil
+	if remote != "" {
+		logger.Debugf("Validating remote: %s", remote)
+		for i, r := range available {
+			logger.Debugf("%d: %s", i+1, r)
+			if r == remote {
+				return r, nil
+			}
 		}
 	}
 
-	// Some remotes are defined, but the specified one isn't
-	if !interactive {
-		logger.Debug("Session is non-interactive: picking first available remote.")
+	// Found configured remotes, but specified one is either not among them or null
+	if unattended {
+		logger.Debug("Session is non-interactive: picking first available remote destination.")
 		return available[0], nil
 	} else {
-		logger.Infof("The specified remote (%s) doesn't exist. You need to choose one:", remote)
-		return rc_config.ChooseRemote(), nil
+		if remote != "" {
+			logger.Warnf("The specified remote doesn't exist: %s", remote)
+		} else {
+			logger.Error("You haven't specified a remote.")
+		}
+		var chosen string
+		for chosen == "" {
+			chosen = rc_config.ChooseRemote()
+		}
+		return chosen, nil
 	}
 }

@@ -1,113 +1,136 @@
 package logger
 
 import (
+	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
-)
+	"strings"
 
-type LogLevel int8
-
-const (
-	DebugLevel LogLevel = iota
-	InfoLevel
-	WarningLevel
-	ErrorLevel
-	FatalLevel
+	"github.com/rs/zerolog"
 )
 
 var (
-	LogPath     string
-	level       LogLevel
-	debugLogger *log.Logger
-	infoLogger  *log.Logger
-	warnLogger  *log.Logger
-	errorLogger *log.Logger
+	Logger  zerolog.Logger
+	Level   zerolog.Level
+	LogPath string
 )
 
-// I feel like there's a better way to do this, out there in the cosmos.
-// But life is short
-func Initialize(path string, logLevel LogLevel) {
+const (
+	DebugLevel = zerolog.DebugLevel
+	InfoLevel  = zerolog.InfoLevel
+	WarnLevel  = zerolog.WarnLevel
+	ErrorLevel = zerolog.ErrorLevel
+	FatalLevel = zerolog.FatalLevel
+)
+
+func Initialize(path string, logLevel zerolog.Level, unattended bool) {
+	// Create a file writer if a log file path is provided
 	var fileWriter io.Writer
 	if path != "" {
 		abs, err := filepath.Abs(path)
-		if err == nil {
+		if err != nil {
+			fmt.Println("Error getting absolute path:", err)
+		} else {
 			logFile, err := os.OpenFile(abs, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-			if err == nil {
+			if err != nil {
+				fmt.Println("Error opening log file:", err)
+			} else {
 				fileWriter = logFile
 				LogPath = abs
 			}
 		}
 	}
 
-	out := io.MultiWriter(os.Stdout, fileWriter)
-	flags := log.Ldate | log.Ltime
+	// Pretty logging configuration
+	zerolog.TimeFieldFormat = "2006/01/02 15:04:05.000"
+	zerolog.TimestampFieldName = "ts"
+	zerolog.MessageFieldName = "msg"
 
-	debugLogger = log.New(out, "[DEBUG] ", flags)
-	infoLogger = log.New(out, "[INFO] ", flags)
-	warnLogger = log.New(out, "[WARN] ", flags)
-	errorLogger = log.New(out, "[ERROR] ", flags)
-	LogPath = path
-	level = logLevel
-}
+	// If no log file path provided or encountered an error, only console will be written to
+	getConsoleWriter := func() io.Writer {
+		if !unattended {
+			// Setup pretty logging if session is interactive
+			cw := zerolog.ConsoleWriter{Out: os.Stdout}
+			cw.FormatLevel = func(i interface{}) string {
+				return strings.ToUpper(fmt.Sprintf("| %-5s |", i))
+			}
+			cw.FormatMessage = func(i interface{}) string {
+				return fmt.Sprintf("* %s", i)
+			}
+			cw.FormatFieldName = func(i interface{}) string {
+				return fmt.Sprintf("%s:", i)
+			}
+			cw.FormatFieldValue = func(i interface{}) string {
+				return strings.ToUpper(fmt.Sprintf("%s", i))
+			}
+			return cw
+		} else {
+			return nil
+		}
+	}
 
-func logln(logger *log.Logger, l LogLevel, v ...interface{}) {
-	if level <= l {
-		logger.Println(v...)
+	var output io.Writer
+	consoleWriter := getConsoleWriter()
+
+	if fileWriter != nil {
+		if consoleWriter != nil {
+			output = io.MultiWriter(consoleWriter, fileWriter)
+		} else {
+			output = fileWriter
+		}
+	} else {
+		if consoleWriter != nil {
+			output = consoleWriter
+		} else {
+			output = nil
+		}
+	}
+
+	if output != nil {
+		Logger = zerolog.New(output).Level(logLevel).With().Timestamp().Logger()
+		Debug("Logging initialized.")
+	} else {
+		fmt.Println("Logging is not enabled.")
 	}
 }
 
-func logf(logger *log.Logger, l LogLevel, format string, v ...interface{}) {
-	if level <= l {
-		logger.Printf(format, v...)
-	}
+func Debug(msg string) {
+	Logger.Debug().Msg(msg)
 }
 
-func Debug(v ...interface{}) {
-	logln(debugLogger, DebugLevel, v...)
+func Debugf(format string, args ...interface{}) {
+	Logger.Debug().Msgf(format, args...)
 }
 
-func Debugf(format string, v ...interface{}) {
-	logf(debugLogger, DebugLevel, format, v...)
+func Info(msg string) {
+	Logger.Info().Msg(msg)
 }
 
-func Info(v ...interface{}) {
-	logln(infoLogger, InfoLevel, v...)
+func Infof(format string, args ...interface{}) {
+	Logger.Info().Msgf(format, args...)
 }
 
-func Infof(format string, v ...interface{}) {
-	logf(infoLogger, InfoLevel, format, v...)
+func Warn(msg string) {
+	Logger.Warn().Msg(msg)
 }
 
-func Warn(v ...interface{}) {
-	logln(warnLogger, WarningLevel, v...)
+func Warnf(format string, args ...interface{}) {
+	Logger.Warn().Msgf(format, args...)
 }
 
-func Warnf(format string, v ...interface{}) {
-	logf(warnLogger, WarningLevel, format, v...)
+func Error(msg string) {
+	Logger.Error().Msg(msg)
 }
 
-func Error(v ...interface{}) {
-	logln(errorLogger, ErrorLevel, v...)
+func Errorf(format string, args ...interface{}) {
+	Logger.Error().Msgf(format, args...)
 }
 
-func Errorf(format string, v ...interface{}) {
-	logf(errorLogger, ErrorLevel, format, v...)
+func Fatal(msg string) {
+	Logger.Fatal().Msg(msg)
 }
 
-func Fatal(v ...interface{}) {
-	if level <= FatalLevel {
-		errorLogger.SetOutput(os.Stderr)
-		errorLogger.SetPrefix("[FATAL] ")
-		errorLogger.Fatalln(v...)
-	}
-}
-
-func Fatalf(format string, v ...interface{}) {
-	if level <= FatalLevel {
-		errorLogger.SetOutput(os.Stderr)
-		errorLogger.SetPrefix("[FATAL] ")
-		errorLogger.Fatalf(format, v...)
-	}
+func Fatalf(format string, args ...interface{}) {
+	Logger.Fatal().Msgf(format, args...)
 }

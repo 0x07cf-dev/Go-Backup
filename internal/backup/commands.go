@@ -2,6 +2,8 @@ package backup
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -14,21 +16,29 @@ type CmdFunc func(chan BackupError, string) string
 
 var CommandMap = map[string]CmdFunc{
 	"!sleep": cmdSleep,
+	"cd":     cmdCD,
 }
+
+// commandContext holds the current working directory and other context information
+type commandContext struct {
+	CWD string
+}
+
+var cmdContext commandContext
 
 func executeCmds(errCh chan BackupError, commands []string, output bool) {
 	for i, command := range commands {
-		// If command is in map, execute custom behaviour
 		parts := strings.Split(command, " ")
 		if len(parts) == 0 {
 			errCh <- CmdInvalid.Error(command, "invalid command")
 			continue
 		}
 
-		cmdName := parts[0]
-		if cmdFunc, ok := CommandMap[cmdName]; ok {
+		// If command is in map, execute custom behaviour
+		baseCommand := parts[0]
+		if cmdFunc, ok := CommandMap[baseCommand]; ok {
 			output := cmdFunc(errCh, command)
-			logger.Infof("%d° Command Output:\n%s\n", i+1, output)
+			logger.Infof("%d° COMMAND OUTPUT (%s):\n%s\n", i+1, command, output)
 			continue
 		}
 
@@ -39,23 +49,27 @@ func executeCmds(errCh chan BackupError, commands []string, output bool) {
 			continue
 		}
 
-		// Pipe command's output
+		// Set command working directory
+		systemCmd.Dir = cmdContext.CWD
+
+		// Pipe command output
 		stdoutBuf := bytes.Buffer{}
 		if output {
 			systemCmd.Stdout = &stdoutBuf
 		}
+
 		// Errors will be displayed regardless of "output" config variable
 		stderrBuf := bytes.Buffer{}
 		systemCmd.Stderr = &stderrBuf
 
 		// Run command and display output
 		if err := systemCmd.Run(); err != nil {
-			logger.Errorf("%d° Command Error: '%s'", i+1, command)
+			logger.Errorf("%d° COMMAND FAILURE: '%s'", i+1, command)
 			logger.Error(stderrBuf.String())
 			errCh <- CmdFailed.Error(command, stderrBuf.String())
 			continue
 		} else if output && len(stdoutBuf.String()) > 0 {
-			logger.Infof("%d° Command Output:\n%s\n", i+1, stdoutBuf.String())
+			logger.Infof("%d° COMMAND OUTPUT (%s):\n%s\n", i+1, command, stdoutBuf.String())
 		}
 	}
 
@@ -78,6 +92,33 @@ func cmdSleep(errCh chan BackupError, command string) string {
 	}
 
 	time.Sleep(time.Duration(duration) * time.Second)
-	logger.Infof("Sleeping for %d seconds\n", duration)
 	return "Sleeping for " + parts[1] + " seconds"
+}
+
+func cmdCD(errCh chan BackupError, command string) string {
+	parts := strings.Split(command, " ")
+	if len(parts) < 2 {
+		err := "invalid cd syntax"
+		errCh <- CmdInvalid.Error(command, err)
+		return err
+	}
+
+	newDir := parts[1]
+	// Resolve the absolute path for the new directory
+	absPath, err := filepath.Abs(newDir)
+	if err != nil {
+		err := "error resolving absolute path for cd"
+		errCh <- CmdInvalid.Error(command, err)
+		return err
+	}
+
+	// Check if the directory exists
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		err := "directory does not exist"
+		errCh <- CmdInvalid.Error(command, err)
+		return err
+	}
+
+	cmdContext.CWD = absPath
+	return "Changed directory to: " + absPath
 }

@@ -11,7 +11,11 @@ import (
 	"github.com/0x07cf-dev/go-backup/internal/config"
 	"github.com/0x07cf-dev/go-backup/internal/logger"
 	"github.com/0x07cf-dev/go-backup/internal/notify"
+
+	_ "github.com/rclone/rclone/backend/drive"
+	_ "github.com/rclone/rclone/backend/dropbox"
 	_ "github.com/rclone/rclone/backend/local"
+	_ "github.com/rclone/rclone/backend/s3"
 	_ "github.com/rclone/rclone/backend/webdav"
 )
 
@@ -26,39 +30,38 @@ type BackupSession struct {
 }
 
 type BackupOpts struct {
-	Remote      string
-	RemoteRoot  string
-	Uploading   bool
-	Simulate    bool
-	Interactive bool
-	Debug       bool
-	Languages   []string
+	Remote     string
+	RemoteRoot string
+	Uploading  bool
+	Simulate   bool
+	Unattended bool
+	Debug      bool
+	Language   string
 }
 
 type BackupOptFunc func(*BackupOpts)
 
 func defaultBackupOpts() *BackupOpts {
 	// Determine system language
-	langs := []string{}
 	lang := os.Getenv("LANG")
 	if lang == "" {
 		lang = os.Getenv("LC_MESSAGES")
 	}
 	p := strings.Split(lang, "_")
 	if len(p) > 0 && len(p[0]) > 0 {
-		logger.Infof("Detected system language: '%s' (%s)", p[0], lang)
-		langs = append(langs, p[0])
+		logger.Debugf("Detected system language: '%s' (%s)", p[0], lang)
+	} else {
+		lang = "en"
 	}
-	langs = append(langs, "en")
 
 	return &BackupOpts{
-		Remote:      "",
-		RemoteRoot:  "Backups",
-		Uploading:   true,
-		Simulate:    false,
-		Interactive: true,
-		Debug:       false,
-		Languages:   langs,
+		Remote:     "default",
+		RemoteRoot: "Backups",
+		Uploading:  true,
+		Simulate:   false,
+		Unattended: false,
+		Debug:      false,
+		Language:   lang,
 	}
 }
 
@@ -90,7 +93,7 @@ func WithSimulation(simulate bool) BackupOptFunc {
 
 func WithInteractivity(interactive bool) BackupOptFunc {
 	return func(opts *BackupOpts) {
-		opts.Interactive = interactive
+		opts.Unattended = !interactive
 	}
 }
 
@@ -100,9 +103,9 @@ func WithDebug(debug bool) BackupOptFunc {
 	}
 }
 
-func WithLanguages(langs ...string) BackupOptFunc {
+func WithLanguage(lang string) BackupOptFunc {
 	return func(opts *BackupOpts) {
-		opts.Languages = langs
+		opts.Language = lang
 	}
 }
 
@@ -112,13 +115,10 @@ func NewSession(ctx context.Context, options ...BackupOptFunc) *BackupSession {
 		fn(opts)
 	}
 
-	// Load rclone config (if user didn't specify remote, it will be picked from it)
-	// config.ValidateRemote(ctx, &opts.Remote, opts.Interactive)
-
 	// Load current machine parameters from configuration
 	machine, err := config.GetCurrentMachine()
 	if err != nil {
-		logger.Fatal(err)
+		logger.Fatal(err.Error())
 
 	}
 
@@ -147,7 +147,7 @@ func (session *BackupSession) Backup() {
 	numPostCmds := len(session.Machine.Post)
 
 	if numPaths == 0 && numPreCmds == 0 && numPostCmds == 0 {
-		logger.Warn("Nothing to do. Please take a look at the configuration file.")
+		logger.Error("Nothing to do. Please take a look at the configuration file.")
 		return
 	}
 
@@ -204,7 +204,7 @@ func (session *BackupSession) Backup() {
 	close(postErrCh)
 
 	// Notify status to user
-	status, statusEmoji := getStatus(transferErrCh, preErrCh, postErrCh, session.Opts.Languages...)
+	status, statusEmoji := getStatus(transferErrCh, preErrCh, postErrCh, session.Opts.Language)
 	session.NotifyStatus(status, statusEmoji, "package")
 
 	// Ping healthchecks
@@ -213,8 +213,8 @@ func (session *BackupSession) Backup() {
 }
 
 func (session *BackupSession) Heartbeat(endpoint string, withLog bool) {
-	if session.Opts.Interactive {
-		// Session is interactive, no heartbeats
+	if !session.Opts.Unattended {
+		logger.Debugf("Session is non-interactive: heartbeat will not be sent. %v", session.Notifier.HealthMonitors)
 		return
 	}
 	if session.Notifier != nil {
@@ -241,7 +241,8 @@ func (session *BackupSession) NotifyStatus(status string, statusTags ...string) 
 		if err != nil {
 			logger.Errorf("Error sending status notification: %s", err)
 		} else {
-			logger.Infof("Notifier Status: '%s'", resp)
+			logger.Debugf("Notifier Status: '%s'", resp)
+			logger.Infof("Post-transfer notification sent.")
 		}
 	}
 }
