@@ -34,6 +34,7 @@ func NewNotifierFromEnv() (*Notifier, error) {
 	}
 	for envVar, monitor := range monitorEnvVars {
 		if _, ok := os.LookupEnv(envVar); ok {
+			logger.Debugf("[✓] Health monitor set: %s", envVar)
 			monitors = append(monitors, monitor)
 		}
 	}
@@ -49,7 +50,7 @@ func NewNotifier(host string, topic string, token string, healthMonitors ...Heal
 	if topic == "" {
 		return nil, fmt.Errorf("invalid ntfy.sh topic")
 	}
-	logger.Infof("Notifier: %s/%s", host, topic)
+	logger.Debugf("Notifier: %s/%s", host, topic)
 	return &Notifier{
 		Host:           host,
 		Topic:          topic,

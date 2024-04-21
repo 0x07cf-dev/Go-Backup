@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -35,15 +36,16 @@ var ctx context.Context
 var configFile string
 var envFile string
 
-var languages []string
+var language string
 var langFile string
 
 var logFile string
 
-var interactive bool
+var unattended bool
 var simulate bool
 var debug bool
 
+var remoteDest string
 var root string
 
 // rootCmd represents the base command when called without any subcommands
@@ -65,13 +67,15 @@ func remoteArg(cmd *cobra.Command, args []string) error {
 	if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
 		return err
 	}
-	// Run the custom validation logic
-	var remote string
+	// Validate
 	if err := cobra.MinimumNArgs(1)(cmd, args); err == nil {
-		remote = args[0]
+		remoteDest = args[0]
 	}
-	if _, err := config.ValidateRemote(ctx, remote, interactive); err != nil {
+
+	if v, err := config.ValidateRemote(ctx, remoteDest, unattended); err != nil {
 		return err
+	} else {
+		remoteDest = v
 	}
 	return nil
 }
@@ -86,20 +90,25 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	// Initialize logging
+	logLevel := logger.InfoLevel
+	if debug {
+		logLevel = logger.DebugLevel
+	}
+	logger.Initialize(logFile, logLevel, unattended)
 
+	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (defaults are .go-backup.json; .configs/.go-backup.json; $HOME/.go-backup.json)")
 	rootCmd.PersistentFlags().StringVarP(&envFile, "envFile", "e", "configs/.env", "environment file")
+	rootCmd.PersistentFlags().StringVarP(&root, "root", "r", "Backups", "root backup directory on the remote")
 
-	rootCmd.PersistentFlags().StringArrayVarP(&languages, "lang", "l", []string{"en"}, "one or more languages")
+	rootCmd.PersistentFlags().StringVarP(&language, "lang", "l", "en", "one or more languages")
 	rootCmd.PersistentFlags().StringVar(&langFile, "langFile", "", "custom language file, must end with .*.toml")
-
 	rootCmd.PersistentFlags().StringVarP(&logFile, "logFile", "o", "go-backup.log", "output log file")
-	rootCmd.PersistentFlags().BoolVarP(&interactive, "interactive", "i", true, "set this to false if you're running the program automatically. User actions will not be required")
+
+	rootCmd.PersistentFlags().BoolVarP(&unattended, "unattended", "u", false, "set this to true if you're running the program automatically. User actions will not be required")
 	rootCmd.PersistentFlags().BoolVarP(&simulate, "simulate", "s", false, "simulates transfers (with fake errors)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enables debug mode")
-
-	rootCmd.PersistentFlags().StringVarP(&root, "root", "r", "Backups", "root backup directory on the remote")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -108,13 +117,6 @@ func init() {
 
 func initConfig() {
 	ctx = context.Background()
-
-	// Initialize logging
-	logLevel := logger.InfoLevel
-	if debug {
-		logLevel = logger.DebugLevel
-	}
-	logger.Initialize(logFile, logLevel)
 
 	// Find config file
 	viper.SetDefault("machines", []config.Machine{})
@@ -125,46 +127,76 @@ func initConfig() {
 		home, err := os.UserHomeDir()
 		cobra.CheckErr(err)
 
-		viper.AddConfigPath("configs")
 		viper.AddConfigPath(".")
+		viper.AddConfigPath("configs")
 		viper.AddConfigPath(home)
 
 		viper.SetConfigName(".go-backup")
 		viper.SetConfigType("json")
 	}
 
-	// Attempt reading config file.
+	// Attempt reading config file
+	cfgfound := false
 	if err := viper.ReadInConfig(); err == nil {
-		logger.Info("Using config file:", viper.ConfigFileUsed())
+		cfgfound = true
 	} else {
-		// Could not load
-		logger.Error(err)
-		switch e := err.(type) {
-		case *os.PathError, viper.ConfigFileNotFoundError:
+		// Config not found
+		var e1 viper.ConfigFileNotFoundError
+		var e2 viper.ConfigParseError
+
+		if errors.As(err, &e1) || os.IsNotExist(err) {
+			// Create config if not found
+			logger.Infof("Setting up configuration: file %s not found. It will be created...", configFile)
 			err = viper.SafeWriteConfig()
 			if err != nil {
 				logger.Fatalf("Error creating config file: %s", err)
 			} else {
 				// Read newly-created config
 				if err := viper.ReadInConfig(); err == nil {
-					logger.Info("Using config file:", viper.ConfigFileUsed())
-				} else {
-					logger.Fatal("No config.")
+					cfgfound = true
 				}
 			}
-		default:
-			logger.Errorf("Unhandled: %s", e)
+		} else if errors.As(err, &e2) {
+			logger.Debugf("Setting up configuration: failed to parse file %s: %s", configFile, err)
+			logger.Errorf("failed to parse file %s", configFile)
+		} else {
+			logger.Debugf("Setting up configuration: failed to read file %s: %s", configFile, err)
+			logger.Errorf("failed to read file %s", configFile)
 		}
+
+		/*var e1 viper.ConfigFileNotFoundError
+		if errors.As(err, &e1) || errors.Is(err, &os.PathError{}) {
+			logger.Infof("The configuration file was not found. It will be created...")
+
+			// Create config if not loaded
+			err = viper.SafeWriteConfig()
+			if err != nil {
+				logger.Fatalf("Error creating config file: %s", err)
+			} else {
+				// Read newly-created config
+				if err := viper.ReadInConfig(); err == nil {
+					cfgfound = true
+				}
+			}
+		} else {
+			logger.Errorf("Unhandled: %s", err)
+		}*/
+	}
+
+	if cfgfound {
+		logger.Debugf("Using config file: %s", viper.ConfigFileUsed())
+	} else {
+		logger.Fatal("Go-Backup cannot operate without a working configuration.")
 	}
 
 	// Environment
 	envfound := false
 	if envFile != "" {
 		if err := loadEnvFile(envFile); err == nil {
-			logger.Info("Using environment file:", envFile)
+			logger.Debugf("Using environment file: %s", envFile)
 			envfound = true
 		} else {
-			logger.Infof("Not using environment file: %s", err.Error())
+			logger.Debugf("Not using environment file: %s", err.Error())
 		}
 	}
 
@@ -174,7 +206,7 @@ func initConfig() {
 	}
 
 	// Language
-	lang.LoadLanguages(langFile, languages...)
+	lang.LoadLanguages(langFile, language)
 }
 
 func loadEnvFile(path string) error {
