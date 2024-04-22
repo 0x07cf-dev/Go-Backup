@@ -12,10 +12,10 @@ import (
 	"github.com/0x07cf-dev/go-backup/internal/logger"
 	"github.com/0x07cf-dev/go-backup/internal/notify"
 
-	_ "github.com/rclone/rclone/backend/drive"
-	_ "github.com/rclone/rclone/backend/dropbox"
+	//_ "github.com/rclone/rclone/backend/drive"
+	//_ "github.com/rclone/rclone/backend/dropbox"
 	_ "github.com/rclone/rclone/backend/local"
-	_ "github.com/rclone/rclone/backend/s3"
+	//_ "github.com/rclone/rclone/backend/s3"
 	_ "github.com/rclone/rclone/backend/webdav"
 )
 
@@ -32,11 +32,11 @@ type BackupSession struct {
 type BackupOpts struct {
 	Remote     string
 	RemoteRoot string
+	Language   string
 	Uploading  bool
 	Simulate   bool
 	Unattended bool
 	Debug      bool
-	Language   string
 }
 
 type BackupOptFunc func(*BackupOpts)
@@ -172,7 +172,7 @@ func (session *BackupSession) Backup() {
 	// Execute pre commands
 	preErrCh := make(chan BackupError, numPreCmds)
 	if numPreCmds > 0 {
-		logger.Info("Executing pre-transfer commands...")
+		logger.Debug("Executing pre-transfer commands...")
 		executeCmds(preErrCh, session.Machine.Pre, session.Machine.Output)
 	}
 	close(preErrCh)
@@ -180,12 +180,16 @@ func (session *BackupSession) Backup() {
 	// Spawn transfer goroutines
 	transferErrCh := make(chan BackupError, numPaths)
 	if session.Opts.Uploading {
+		logger.Debugf("Starting upload routines... %v", session.Machine.Paths)
 		for _, path := range session.Machine.Paths {
 			wg.Add(1)
+			logger.Debugf("Added routine for path: %s", path)
 			go session.uploadPath(path, &wg, transferErrCh, session.Opts.Simulate)
 		}
 	} else {
+		logger.Debugf("Starting download routines... %v", session.Machine.Paths)
 		for _, path := range session.Machine.Paths {
+			logger.Debugf("Added routine for path: %s", path)
 			wg.Add(1)
 			go session.downloadPath(path, &wg, transferErrCh, session.Opts.Simulate)
 		}
@@ -213,16 +217,18 @@ func (session *BackupSession) Backup() {
 }
 
 func (session *BackupSession) Heartbeat(endpoint string, withLog bool) {
-	if !session.Opts.Unattended {
-		logger.Debugf("Session is non-interactive: heartbeat will not be sent. %v", session.Notifier.HealthMonitors)
-		return
-	}
 	if session.Notifier != nil {
+		if !session.Opts.Unattended {
+			logger.Debugf("Session is non-interactive: heartbeat will not be sent. %v", session.Notifier.HealthMonitors)
+			return
+		}
 		resp, err := session.Notifier.SendHeartbeats(endpoint, withLog)
 		if err != nil {
 			logger.Errorf("Error sending heartbeat: %s", err)
 		}
 		logger.Infof("Heartbeat Status: '%s'", resp)
+	} else if session.Opts.Unattended {
+		logger.Error("Heartbeats are not configured.")
 	}
 }
 

@@ -69,7 +69,7 @@ func (notifier *Notifier) SendHeartbeats(endpoint string, withLog bool) (string,
 		if withLog && monitorParams[mon].Method == "POST" {
 			file, err := os.Open(logger.LogPath)
 			if err != nil {
-				fmt.Println("Error opening file:", err)
+				logger.Errorf("Error opening log file: %s", err.Error())
 			}
 			defer file.Close()
 			buf.ReadFrom(file)

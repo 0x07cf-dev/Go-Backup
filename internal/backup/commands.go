@@ -19,7 +19,6 @@ var CommandMap = map[string]CmdFunc{
 	"cd":     cmdCD,
 }
 
-// commandContext holds the current working directory and other context information
 type commandContext struct {
 	CWD string
 }
@@ -104,7 +103,6 @@ func cmdCD(errCh chan BackupError, command string) string {
 	}
 
 	newDir := parts[1]
-	// Resolve the absolute path for the new directory
 	absPath, err := filepath.Abs(newDir)
 	if err != nil {
 		err := "error resolving absolute path for cd"

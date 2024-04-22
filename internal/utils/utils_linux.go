@@ -18,6 +18,6 @@ func CleanPath(p string) (string, error) {
 func ParseCommand(c string) (*exec.Cmd, error) {
 	// Expand environment variables
 	res := os.ExpandEnv(c)
-	systemCmd := exec.Command("sh", "-c", res)
+	systemCmd := exec.Command("bash", "-c", res)
 	return systemCmd, nil
 }

@@ -25,6 +25,8 @@ const (
 )
 
 func Initialize(path string, logLevel zerolog.Level, unattended bool) {
+	Level = logLevel
+
 	// Create a file writer if a log file path is provided
 	var fileWriter io.Writer
 	if path != "" {
@@ -88,7 +90,7 @@ func Initialize(path string, logLevel zerolog.Level, unattended bool) {
 	}
 
 	if output != nil {
-		Logger = zerolog.New(output).Level(logLevel).With().Timestamp().Logger()
+		Logger = zerolog.New(output).Level(Level).With().Timestamp().Logger()
 		Debug("Logging initialized.")
 	} else {
 		fmt.Println("Logging is not enabled.")
