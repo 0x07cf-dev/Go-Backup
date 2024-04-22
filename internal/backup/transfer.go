@@ -49,7 +49,7 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 
 	if simulate {
 		// totally valid human-readable errors
-		errorChance := 0.3
+		errorChance := 0
 		if rand.Float32() < float32(errorChance) {
 			var syllables []string
 			vowels := []rune{'a', 'e', 'i', 'o', 'u'}
@@ -96,13 +96,13 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 	// This is a naive approach that simply copies the files/dirs over, overwriting.
 	if currFile.IsDir() {
 		// Upload directory
-		logger.Infof("---------- UPLOADING DIR ----------")
 		remoteRoot, err := session.getRemotePath(absPath)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
 		}
-		logger.Infof("%s >>> %s", path, remoteRoot)
+
+		logger.Debugf("Upload dir: '%s' ---> '%s'", path, remoteRoot)
 
 		destFs, err := initFs(session.context, remoteRoot)
 		if err != nil {
@@ -124,17 +124,21 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 			); err != nil {
 				errCh <- UploadError.Error(path, err.Error())
 				return
+			} else {
+				logger.Infof("Upload dir: '%s' ---> '%s'", path, remoteRoot)
 			}
+		} else {
+			logger.Infof("Would upload dir: '%s' ---> '%s'", path, remoteRoot)
 		}
 	} else {
 		// Upload file
-		logger.Infof("---------- UPLOADING FILE ---------")
 		remoteRoot, err := session.getRemotePath(parent)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
 		}
-		logger.Infof("%s >>> %s", path, remoteRoot)
+
+		logger.Debugf("Upload file: '%s' ---> '%s'", path, remoteRoot)
 
 		destFs, err := initFs(session.context, remoteRoot)
 		if err != nil {
@@ -158,11 +162,15 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 			); err != nil {
 				errCh <- UploadError.Error(path, err.Error())
 				return
+			} else {
+				logger.Infof("Upload file: '%s' ---> '%s'", path, remoteRoot)
 			}
+		} else {
+			logger.Infof("Would upload file: '%s' ---> '%s'", path, remoteRoot)
 		}
 	}
 
-	logger.Infof("---------- DONE! (%v) ----------", time.Since(t0).Truncate(2))
+	logger.Infof("Transfers DONE! (%v)", time.Since(t0).Truncate(2))
 	logger.Info("")
 }
 
@@ -186,6 +194,7 @@ func (session *BackupSession) getRemotePath(path string) (string, error) {
 			cleanPath,
 		),
 	)
+	logger.Debugf("Cleaned path: '%s' ---> '%s'", path, cleanPath)
 	return cleanPath, nil
 }
 

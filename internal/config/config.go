@@ -109,7 +109,8 @@ func ValidateRemote(ctx context.Context, remote string, unattended bool) (string
 		rc_configfile.Install()
 		// Silence, rclone!
 		conf := rc_fs.GetConfig(ctx)
-		conf.LogLevel = rc_fs.LogLevelWarning
+		conf.LogLevel = rc_fs.LogLevelInfo
+		conf.Progress = true
 		conf.MultiThreadSet = true
 	})
 
