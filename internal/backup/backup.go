@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -119,7 +120,6 @@ func NewSession(ctx context.Context, options ...BackupOptFunc) *BackupSession {
 	machine, err := config.GetCurrentMachine()
 	if err != nil {
 		logger.Fatal(err.Error())
-
 	}
 
 	// Load notifier parameters from environment
@@ -153,16 +153,15 @@ func (session *BackupSession) Backup() {
 
 	// Ternary operator is sometimes useful :(
 	var sb strings.Builder
-	sb.WriteString("INITIALIZING ")
 	if session.Opts.Uploading {
-		sb.WriteString("UPLOAD ")
+		sb.WriteString("Upload ")
 	} else {
-		sb.WriteString("DOWNLOAD ")
+		sb.WriteString("Download ")
 	}
 	if session.Opts.Simulate {
-		sb.WriteString("SIMULATION ")
+		sb.WriteString("Simulation ")
 	} else {
-		sb.WriteString("SESSION ")
+		sb.WriteString("Session ")
 	}
 	sb.WriteString(fmt.Sprintf("(%s)", session.Opts.Remote))
 	logger.Info(sb.String())
@@ -172,31 +171,29 @@ func (session *BackupSession) Backup() {
 	// Execute pre commands
 	preErrCh := make(chan BackupError, numPreCmds)
 	if numPreCmds > 0 {
-		logger.Debug("Executing pre-transfer commands...")
+		logger.Info("Executing pre-transfer commands...")
 		executeCmds(preErrCh, session.Machine.Pre, session.Machine.Output)
 	}
 	close(preErrCh)
 
 	// Spawn transfer goroutines
 	transferErrCh := make(chan BackupError, numPaths)
-	if session.Opts.Uploading {
-		logger.Debugf("Starting upload routines... %v", session.Machine.Paths)
-		for _, path := range session.Machine.Paths {
-			wg.Add(1)
-			logger.Debugf("Added routine for path: %s", path)
-			go session.uploadPath(path, &wg, transferErrCh, session.Opts.Simulate)
+	if numPaths > 0 {
+		logger.Debug("Spawning transfer routines...")
+		if session.Opts.Uploading {
+			for _, path := range session.Machine.Paths {
+				wg.Add(1)
+				go session.uploadPath(path, &wg, transferErrCh, session.Opts.Simulate)
+			}
+		} else {
+			for _, path := range session.Machine.Paths {
+				wg.Add(1)
+				go session.downloadPath(path, &wg, transferErrCh, session.Opts.Simulate)
+			}
 		}
-	} else {
-		logger.Debugf("Starting download routines... %v", session.Machine.Paths)
-		for _, path := range session.Machine.Paths {
-			logger.Debugf("Added routine for path: %s", path)
-			wg.Add(1)
-			go session.downloadPath(path, &wg, transferErrCh, session.Opts.Simulate)
-		}
+		// Sync goroutines
+		wg.Wait()
 	}
-
-	// Sync goroutines
-	wg.Wait()
 	close(transferErrCh)
 
 	// Execute post commands
@@ -208,6 +205,7 @@ func (session *BackupSession) Backup() {
 	close(postErrCh)
 
 	// Notify status to user
+	logger.Info("BACKUP DONE!")
 	status, statusEmoji := getStatus(transferErrCh, preErrCh, postErrCh, session.Opts.Language)
 	session.NotifyStatus(status, statusEmoji, "package")
 
@@ -226,9 +224,9 @@ func (session *BackupSession) Heartbeat(endpoint string, withLog bool) {
 		if err != nil {
 			logger.Errorf("Error sending heartbeat: %s", err)
 		}
-		logger.Infof("Heartbeat Status: '%s'", resp)
+		logger.Debugf("Heartbeat Status: '%s'", resp)
 	} else if session.Opts.Unattended {
-		logger.Error("Heartbeats are not configured.")
+		logger.Info("Heartbeats are not configured.")
 	}
 }
 
@@ -243,7 +241,7 @@ func (session *BackupSession) NotifyStatus(status string, statusTags ...string) 
 		msgTags = append(msgTags, statusTags...)
 		msgTags = append(msgTags, session.Machine.Hostname, session.Notifier.Topic)
 
-		resp, err := session.Notifier.Send(msgTitle, status, msgTags)
+		resp, err := session.Notifier.Send(msgTitle, status, msgTags, notify.WithClickUrl(&url.URL{Host: session.Notifier.Host}))
 		if err != nil {
 			logger.Errorf("Error sending status notification: %s", err)
 		} else {

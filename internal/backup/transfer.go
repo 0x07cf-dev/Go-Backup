@@ -24,18 +24,17 @@ func initFs(ctx context.Context, path string) (rc_fs.Fs, error) {
 		return nil, err
 	}
 
-	// Make dir if not found
+	// Make remote dir if not found
 	if _, err := newFs.List(ctx, ""); errors.Is(err, rc_fs.ErrorDirNotFound) {
 		if err = rc_ops.Mkdir(ctx, newFs, ""); err != nil {
 			return nil, err
 		}
-		logger.Infof("%s created!", path)
+		logger.Infof("Created dir on remote: '%s'", path)
 	}
 	return newFs, nil
 }
 
 func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh chan BackupError, simulate bool) {
-	t0 := time.Now()
 	defer wg.Done()
 
 	// Mutex lock
@@ -102,8 +101,6 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 			return
 		}
 
-		logger.Debugf("Upload dir: '%s' ---> '%s'", path, remoteRoot)
-
 		destFs, err := initFs(session.context, remoteRoot)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
@@ -138,8 +135,6 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 			return
 		}
 
-		logger.Debugf("Upload file: '%s' ---> '%s'", path, remoteRoot)
-
 		destFs, err := initFs(session.context, remoteRoot)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
@@ -169,9 +164,6 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 			logger.Infof("Would upload file: '%s' ---> '%s'", path, remoteRoot)
 		}
 	}
-
-	logger.Infof("Transfers DONE! (%v)", time.Since(t0).Truncate(2))
-	logger.Info("")
 }
 
 func (session *BackupSession) getRemotePath(path string) (string, error) {
@@ -194,7 +186,6 @@ func (session *BackupSession) getRemotePath(path string) (string, error) {
 			cleanPath,
 		),
 	)
-	logger.Debugf("Cleaned path: '%s' ---> '%s'", path, cleanPath)
 	return cleanPath, nil
 }
 
