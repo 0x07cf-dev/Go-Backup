@@ -17,7 +17,7 @@ type CmdFunc func(chan BackupError, string) string
 var CommandMap = map[string]CmdFunc{
 	"sleep":  cmdSleep,
 	"cd":     cmdCD,
-	"export": cmdCD,
+	"export": cmdExport,
 }
 
 type CommandOpts struct {
@@ -52,18 +52,19 @@ func executeCmds(errCh chan BackupError, commands []string, output bool) {
 			outTempl := "%d° (%s): '%s'"
 			errTempl := "%d° (%s): '%s'"
 
+			// Parse command and expand environment variables
+			systemCmd, err := utils.ParseCommand(subCommand)
+			if err != nil {
+				errCh <- CmdInvalid.Error(subCommand, "could not parse command")
+				continue
+			}
+
 			// If command is in map, execute custom behaviour
+			// Otherwise, execute it on the system
 			baseCommand := parts[0]
 			if cmdFunc, ok := CommandMap[baseCommand]; ok {
 				output := cmdFunc(errCh, subCommand)
 				logger.Infof(outTempl, ordinal, subCommand, output)
-				continue
-			}
-
-			// Otherwise, execute it on the system
-			systemCmd, err := utils.ParseCommand(subCommand)
-			if err != nil {
-				errCh <- CmdInvalid.Error(subCommand, "could not parse command")
 				continue
 			}
 
@@ -93,7 +94,6 @@ func executeCmds(errCh chan BackupError, commands []string, output bool) {
 		}
 		time.Sleep(1 * time.Second)
 	}
-	time.Sleep(1 * time.Second)
 }
 
 func cmdSleep(errCh chan BackupError, command string) string {
@@ -145,26 +145,21 @@ func cmdCD(errCh chan BackupError, command string) string {
 func cmdExport(errCh chan BackupError, command string) string {
 	parts := strings.Split(command, " ")
 	if len(parts) < 2 {
-		err := "invalid cd syntax"
+		err := "invalid export syntax"
 		errCh <- CmdInvalid.Error(command, err)
 		return err
 	}
 
-	newDir := parts[1]
-	absPath, err := filepath.Abs(newDir)
-	if err != nil {
-		err := "error resolving absolute path for cd"
+	// Extract key and value from the command
+	kv := strings.SplitN(parts[1], "=", 2)
+	if len(kv) != 2 {
+		err := "invalid export syntax"
 		errCh <- CmdInvalid.Error(command, err)
 		return err
 	}
+	k := kv[0]
+	v := kv[1]
 
-	// Check if the directory exists
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		err := "directory does not exist"
-		errCh <- CmdInvalid.Error(command, err)
-		return err
-	}
-
-	cmdContext.CWD = absPath
-	return "Changed directory to: " + absPath
+	cmdContext.Env = append(cmdContext.Env, k+"="+v)
+	return "Exported variable: " + k + "=" + v
 }
