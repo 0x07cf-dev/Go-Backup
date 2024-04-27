@@ -84,13 +84,13 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 		possibleFails := cap(errCh) + cap(preErrCh) + cap(postErrCh)
 		totalFails := failedTransfers + failedPre + failedPost
 		totalFailRate := int(float32(totalFails) / float32(possibleFails) * 100)
-		logger.Warnf("Failures: %d/%d (%d%%)", totalFails, possibleFails, totalFailRate)
+		logger.Debugf("Failures: %d/%d (%d%%)", totalFails, possibleFails, totalFailRate)
 
 		// Not a perfect run
 		if totalFailRate > 0 {
 			str := lang.GetTranslator().Localize("Fail", langs...)
 			status.WriteString(str + "\n")
-			logger.Warn(str)
+			logger.Debug(str)
 		}
 
 		if totalFailRate > 98 {
@@ -100,51 +100,51 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 		// Append upload errors
 		if failedTransfers > 0 {
 			transferFailRate := int8(float32(failedTransfers) / float32(cap(errCh)) * 100)
-			//logger.Warnf("Transfers failed: %d/%d (%d%%)\n", failedTransfers, cap(errCh), transferFailRate)
+			logger.Debugf("Transfers failed: %d/%d (%d%%)\n", failedTransfers, cap(errCh), transferFailRate)
 
 			if transferFailRate > 10 {
 				str := lang.GetTranslator().LocalizeTemplate("FailedTransferNum", map[string]string{
 					"Failed": fmt.Sprintf("%d%%", transferFailRate),
 				}, langs...)
 				status.WriteString(str + "\n")
-				logger.Warn(str)
+				logger.Debug(str)
 			}
 			for i, err := range transferErrors {
 				str := fmt.Sprintf("%d° | %s\n", i+1, err.Localize(langs...))
 				status.WriteString(str)
-				logger.Warn(str)
+				logger.Debug(str)
 			}
 		}
 
 		// Append pre errors
 		if failedPre > 0 {
-			logger.Warnf("Failed pre-transfer commands: %d/%d", failedPre, cap(preErrCh))
+			logger.Debugf("Pre-transfer commands failed: %d/%d", failedPre, cap(preErrCh))
 			str := lang.GetTranslator().LocalizeTemplate("FailedPreNum", map[string]string{
 				"Failed": strconv.Itoa(failedPre),
 			}, langs...)
 			status.WriteString(str + "\n")
-			logger.Warn(str)
+			logger.Debug(str)
 
 			for i, err := range preErrors {
 				s := fmt.Sprintf("%d° | %s\n", i+1, err.Localize(langs...))
 				status.WriteString(s)
-				logger.Warn(s)
+				logger.Debug(s)
 			}
 		}
 
 		// Append post errors
 		if failedPost > 0 {
-			logger.Warnf("Failed post-transfer commands: %d/%d", failedPost, cap(postErrCh))
+			logger.Debugf("Post-transfer commands failed: %d/%d", failedPost, cap(postErrCh))
 			str := lang.GetTranslator().LocalizeTemplate("FailedPostNum", map[string]string{
 				"Failed": strconv.Itoa(failedPost),
 			}, langs...)
 			status.WriteString(str + "\n")
-			logger.Warn(str)
+			logger.Debug(str)
 
 			for i, err := range postErrors {
 				s := fmt.Sprintf("%d° | %s", i+1, err.Localize(langs...))
 				status.WriteString(s)
-				logger.Warn(s)
+				logger.Debug(s)
 			}
 		}
 

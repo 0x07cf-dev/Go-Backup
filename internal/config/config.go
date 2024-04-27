@@ -103,13 +103,13 @@ func GetCurrentMachine() (*Machine, error) {
 	return current, nil
 }
 
-func ValidateRemote(ctx context.Context, remote string, unattended bool) (string, error) {
+func AsValidRemote(ctx context.Context, remote string, unattended bool) (string, error) {
 	var once sync.Once
 	once.Do(func() {
 		rc_configfile.Install()
 		// Silence, rclone!
 		conf := rc_fs.GetConfig(ctx)
-		conf.LogLevel = rc_fs.LogLevelInfo
+		conf.LogLevel = rc_fs.LogLevelWarning
 		conf.Progress = true
 		conf.MultiThreadSet = true
 	})

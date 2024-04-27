@@ -15,63 +15,84 @@ import (
 type CmdFunc func(chan BackupError, string) string
 
 var CommandMap = map[string]CmdFunc{
-	"!sleep": cmdSleep,
+	"sleep":  cmdSleep,
 	"cd":     cmdCD,
+	"export": cmdCD,
 }
 
-type commandContext struct {
+type CommandOpts struct {
 	CWD string
+	Env []string
 }
 
-var cmdContext commandContext
+var cmdContext CommandOpts
 
 func executeCmds(errCh chan BackupError, commands []string, output bool) {
+	// Reset context
+	cmdContext.CWD, _ = os.Getwd()
+	cmdContext.Env = os.Environ()
+	logger.Debugf("Working directory: '%s'", cmdContext.CWD)
+	logger.Debugf("Environment: %v", cmdContext.Env)
+
 	for i, command := range commands {
-		parts := strings.Split(command, " ")
-		if len(parts) == 0 {
-			errCh <- CmdInvalid.Error(command, "invalid command")
-			continue
+		ordinal := i + 1
+		subCommands := strings.Split(command, "&")
+		for _, subCommand := range subCommands {
+			subCommand = strings.TrimSpace(subCommand)
+			if subCommand == "" {
+				continue
+			}
+
+			parts := strings.Split(subCommand, " ")
+			if len(parts) == 0 {
+				errCh <- CmdInvalid.Error(subCommand, "invalid command")
+				continue
+			}
+
+			outTempl := "%d° (%s): '%s'"
+			errTempl := "%d° (%s): '%s'"
+
+			// If command is in map, execute custom behaviour
+			baseCommand := parts[0]
+			if cmdFunc, ok := CommandMap[baseCommand]; ok {
+				output := cmdFunc(errCh, subCommand)
+				logger.Infof(outTempl, ordinal, subCommand, output)
+				continue
+			}
+
+			// Otherwise, execute it on the system
+			systemCmd, err := utils.ParseCommand(subCommand)
+			if err != nil {
+				errCh <- CmdInvalid.Error(subCommand, "could not parse command")
+				continue
+			}
+
+			// Set command working directory
+			systemCmd.Dir = cmdContext.CWD
+			systemCmd.Env = cmdContext.Env
+
+			// Pipe command output
+			stdoutBuf := bytes.Buffer{}
+			if output {
+				systemCmd.Stdout = &stdoutBuf
+			}
+
+			// Errors will be displayed regardless of "output" config variable
+			stderrBuf := bytes.Buffer{}
+			systemCmd.Stderr = &stderrBuf
+
+			// Run command and display output
+			if err := systemCmd.Run(); err != nil {
+				logger.Errorf(errTempl, ordinal, subCommand)
+				logger.Error(stderrBuf.String())
+				errCh <- CmdFailed.Error(subCommand, stderrBuf.String())
+				continue
+			} else if output {
+				logger.Infof(outTempl, ordinal, subCommand, stdoutBuf.String())
+			}
 		}
-
-		// If command is in map, execute custom behaviour
-		baseCommand := parts[0]
-		if cmdFunc, ok := CommandMap[baseCommand]; ok {
-			output := cmdFunc(errCh, command)
-			logger.Infof("%d° COMMAND OUTPUT (%s):\n%s\n", i+1, command, output)
-			continue
-		}
-
-		// Otherwise, execute it on the system
-		systemCmd, err := utils.ParseCommand(command)
-		if err != nil {
-			errCh <- CmdInvalid.Error(command, "could not parse command")
-			continue
-		}
-
-		// Set command working directory
-		systemCmd.Dir = cmdContext.CWD
-
-		// Pipe command output
-		stdoutBuf := bytes.Buffer{}
-		if output {
-			systemCmd.Stdout = &stdoutBuf
-		}
-
-		// Errors will be displayed regardless of "output" config variable
-		stderrBuf := bytes.Buffer{}
-		systemCmd.Stderr = &stderrBuf
-
-		// Run command and display output
-		if err := systemCmd.Run(); err != nil {
-			logger.Errorf("%d° COMMAND FAILURE: '%s'", i+1, command)
-			logger.Error(stderrBuf.String())
-			errCh <- CmdFailed.Error(command, stderrBuf.String())
-			continue
-		} else if output && len(stdoutBuf.String()) > 0 {
-			logger.Infof("%d° COMMAND OUTPUT (%s):\n%s\n", i+1, command, stdoutBuf.String())
-		}
+		time.Sleep(1 * time.Second)
 	}
-
 	time.Sleep(1 * time.Second)
 }
 
@@ -95,6 +116,33 @@ func cmdSleep(errCh chan BackupError, command string) string {
 }
 
 func cmdCD(errCh chan BackupError, command string) string {
+	parts := strings.Split(command, " ")
+	if len(parts) < 2 {
+		err := "invalid cd syntax"
+		errCh <- CmdInvalid.Error(command, err)
+		return err
+	}
+
+	newDir := parts[1]
+	absPath, err := filepath.Abs(newDir)
+	if err != nil {
+		err := "error resolving absolute path for cd"
+		errCh <- CmdInvalid.Error(command, err)
+		return err
+	}
+
+	// Check if the directory exists
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		err := "directory does not exist"
+		errCh <- CmdInvalid.Error(command, err)
+		return err
+	}
+
+	cmdContext.CWD = absPath
+	return "Changed directory to: " + absPath
+}
+
+func cmdExport(errCh chan BackupError, command string) string {
 	parts := strings.Split(command, " ")
 	if len(parts) < 2 {
 		err := "invalid cd syntax"

@@ -71,7 +71,7 @@ func remoteArg(cmd *cobra.Command, args []string) error {
 		remoteDest = args[0]
 	}
 
-	if v, err := config.ValidateRemote(ctx, remoteDest, unattended); err != nil {
+	if v, err := config.AsValidRemote(ctx, remoteDest, unattended); err != nil {
 		return err
 	} else {
 		remoteDest = v
@@ -163,24 +163,6 @@ func initConfig() {
 			logger.Debugf("Setting up configuration: failed to read file %s: %s", configFile, err)
 			logger.Errorf("failed to read file %s", configFile)
 		}
-
-		/*var e1 viper.ConfigFileNotFoundError
-		if errors.As(err, &e1) || errors.Is(err, &os.PathError{}) {
-			logger.Infof("The configuration file was not found. It will be created...")
-
-			// Create config if not loaded
-			err = viper.SafeWriteConfig()
-			if err != nil {
-				logger.Fatalf("Error creating config file: %s", err)
-			} else {
-				// Read newly-created config
-				if err := viper.ReadInConfig(); err == nil {
-					cfgfound = true
-				}
-			}
-		} else {
-			logger.Errorf("Unhandled: %s", err)
-		}*/
 	}
 
 	if cfgfound {
