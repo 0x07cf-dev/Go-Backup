@@ -35,7 +35,7 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		session := backup.NewSession(ctx,
 			backup.WithRemote(remoteDest),
-			backup.WithRemoteRoot(root),
+			backup.WithRemoteRoot(remoteRoot),
 			backup.WithSimulation(simulate),
 			backup.WithInteractivity(!unattended),
 			backup.WithDebug(debug),

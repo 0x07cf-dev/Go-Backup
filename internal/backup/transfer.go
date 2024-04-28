@@ -94,14 +94,15 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 
 	// This is a naive approach that simply copies the files/dirs over, overwriting.
 	if currFile.IsDir() {
-		// Upload directory
-		remoteRoot, err := session.getRemotePath(absPath)
+		// Upload directory to remote
+		remotePath, err := session.getRemotePath(absPath)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
 		}
 
-		destFs, err := initFs(session.context, remoteRoot)
+		// Destination and source filesystems
+		destFs, err := initFs(session.context, remotePath)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
@@ -115,27 +116,28 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 		// Upload
 		if !simulate {
 			if err = rc_sync.CopyDir(session.context,
-				destFs,
-				srcFs,
-				true, // Copy empty dirs?
+				destFs, // Upload dir destination: remoteRoot/hostname/sourceFileName.any
+				srcFs,  // Upload dir source: user-defined
+				true,   // Upload empty source dirs?
 			); err != nil {
 				errCh <- UploadError.Error(path, err.Error())
 				return
 			} else {
-				logger.Infof("Upload dir: '%s' ---> '%s'", path, remoteRoot)
+				logger.Infof("Upload dir: '%s' ---> '%s'", path, remotePath)
 			}
 		} else {
-			logger.Infof("Would upload dir: '%s' ---> '%s'", path, remoteRoot)
+			logger.Infof("Would upload dir: '%s' ---> '%s'", path, remotePath)
 		}
 	} else {
-		// Upload file
-		remoteRoot, err := session.getRemotePath(parent)
+		// Upload file to remote
+		remotePath, err := session.getRemotePath(parent)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
 		}
 
-		destFs, err := initFs(session.context, remoteRoot)
+		// Destination and source filesystems
+		destFs, err := initFs(session.context, remotePath)
 		if err != nil {
 			errCh <- UploadError.Error(path, err.Error())
 			return
@@ -151,25 +153,33 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 			if err = rc_ops.CopyFile(
 				session.context,
 				destFs, // Upload file destination: remoteRoot/hostname/sourceFileName.any
-				srcFs,  // Upload file source: as defined in config
+				srcFs,  // Upload file source: user-defined
 				currFile.Name(),
 				currFile.Name(),
 			); err != nil {
 				errCh <- UploadError.Error(path, err.Error())
 				return
 			} else {
-				logger.Infof("Upload file: '%s' ---> '%s'", path, remoteRoot)
+				logger.Infof("Upload file: '%s' ---> '%s'", path, remotePath)
 			}
 		} else {
-			logger.Infof("Would upload file: '%s' ---> '%s'", path, remoteRoot)
+			logger.Infof("Would upload file: '%s' ---> '%s'", path, remotePath)
 		}
 	}
+}
+
+// not gonna happen for a while
+func (session *BackupSession) downloadPath(path string, wg *sync.WaitGroup, errCh chan BackupError, simulate bool) {
+	t0 := time.Now()
+	logger.Infof("DOWNLOADED! (%v)\n", time.Since(t0))
 }
 
 func (session *BackupSession) getRemotePath(path string) (string, error) {
 	// Remote needs to end with ':'
 	remote := session.Opts.Remote
-	if !strings.HasSuffix(remote, ":") {
+
+	// Append colon to a non-empty, non-path remote if it doesn't have it
+	if remote != "" && !filepath.IsAbs(remote) && !strings.HasSuffix(remote, ":") {
 		remote += ":"
 	}
 
@@ -186,11 +196,7 @@ func (session *BackupSession) getRemotePath(path string) (string, error) {
 			cleanPath,
 		),
 	)
-	return cleanPath, nil
-}
 
-// not gonna happen for a while
-func (session *BackupSession) downloadPath(path string, wg *sync.WaitGroup, errCh chan BackupError, simulate bool) {
-	t0 := time.Now()
-	logger.Infof("DOWNLOADED! (%v)\n", time.Since(t0))
+	logger.Debugf("Parsed path: '%s' ---> '%s'", path, cleanPath)
+	return cleanPath, nil
 }
