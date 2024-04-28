@@ -56,8 +56,6 @@ func defaultBackupOpts() *BackupOpts {
 	}
 
 	return &BackupOpts{
-		Remote:     "default",
-		RemoteRoot: "Backups",
 		Uploading:  true,
 		Simulate:   false,
 		Unattended: false,
@@ -163,9 +161,14 @@ func (session *BackupSession) Backup() {
 	} else {
 		sb.WriteString("Session ")
 	}
-	sb.WriteString(fmt.Sprintf("(%s)", session.Opts.Remote))
+	if session.Opts.Remote == "" {
+		sb.WriteString("(local)")
+	} else {
+		sb.WriteString(fmt.Sprintf("(%s)", session.Opts.Remote))
+	}
 	logger.Info(sb.String())
 
+	// Health
 	session.Heartbeat("start", false)
 
 	// Execute pre commands

@@ -34,7 +34,7 @@ import (
 var ctx context.Context
 
 var remoteDest string
-var root string
+var remoteRoot string
 
 var configFile string
 var envFile string
@@ -66,15 +66,17 @@ func remoteArg(cmd *cobra.Command, args []string) error {
 	if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
 		return err
 	}
-	// Validate
+
+	// First argument is not required
 	if err := cobra.MinimumNArgs(1)(cmd, args); err == nil {
 		remoteDest = args[0]
 	}
 
-	if v, err := config.AsValidRemote(ctx, remoteDest, unattended); err != nil {
-		return err
-	} else {
+	// Validate remote
+	if v, err := config.AsValidRemote(ctx, remoteDest, unattended); err == nil {
 		remoteDest = v
+	} else {
+		return err
 	}
 	return nil
 }
@@ -90,10 +92,10 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVarP(&root, "root", "r", "Backups", "root backup directory on the remote")
+	rootCmd.PersistentFlags().StringVarP(&remoteRoot, "remoteRoot", "r", "", "root backup directory on the remote")
 
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (defaults are .go-backup.json; .configs/.go-backup.json; $HOME/.go-backup.json)")
-	rootCmd.PersistentFlags().StringVarP(&envFile, "envFile", "e", "configs/.env", "environment file")
+	rootCmd.PersistentFlags().StringVarP(&envFile, "envFile", "e", "", "environment file")
 	rootCmd.PersistentFlags().StringVarP(&logFile, "logFile", "o", "go-backup.log", "output log file")
 
 	rootCmd.PersistentFlags().StringVarP(&language, "lang", "l", "en", "one or more languages")
@@ -101,11 +103,15 @@ func init() {
 
 	rootCmd.PersistentFlags().BoolVarP(&unattended, "unattended", "U", false, "set this to true if you're running the program automatically. User actions will not be required")
 	rootCmd.PersistentFlags().BoolVarP(&simulate, "simulate", "S", false, "simulates transfers (with fake errors)")
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enables debug logging (much more information)")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enables debug logging")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
+
+func initConfig() {
+	ctx = context.Background()
 
 	// Initialize logging
 	logLevel := logger.InfoLevel
@@ -113,10 +119,6 @@ func init() {
 		logLevel = logger.DebugLevel
 	}
 	logger.Initialize(logFile, logLevel, unattended)
-}
-
-func initConfig() {
-	ctx = context.Background()
 
 	// Find config file
 	viper.SetDefault("machines", []config.Machine{})
@@ -191,9 +193,13 @@ func initConfig() {
 	lang.LoadLanguages(langFile, language)
 
 	// Log session parameters
+	logger.Debugf("----------------------------------------------------------------")
 	logger.Debugf("Debug: %v  |  Simulation: %v  |  Unattended: %v", debug, simulate, unattended)
-	logger.Debugf("Config: %s  |  Env: %s  |  Log: %s", viper.ConfigFileUsed(), envFile, logFile)
-	logger.Debugf("Language: %s  |  Custom lang file: %s", language, langFile)
+	logger.Debugf("Config file: '%s'", viper.ConfigFileUsed())
+	logger.Debugf("Env file: '%s'", envFile)
+	logger.Debugf("Log file: '%s'", logFile)
+	logger.Debugf("Language: '%s'  |  Custom lang file: %s", language, langFile)
+	logger.Debugf("----------------------------------------------------------------")
 }
 
 func loadEnvFile(path string) error {

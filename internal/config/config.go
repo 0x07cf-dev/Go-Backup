@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	rc_fs "github.com/rclone/rclone/fs"
@@ -104,6 +106,7 @@ func GetCurrentMachine() (*Machine, error) {
 }
 
 func AsValidRemote(ctx context.Context, remote string, unattended bool) (string, error) {
+	// Configure rclone
 	var once sync.Once
 	once.Do(func() {
 		rc_configfile.Install()
@@ -114,47 +117,120 @@ func AsValidRemote(ctx context.Context, remote string, unattended bool) (string,
 		conf.MultiThreadSet = true
 	})
 
-	// If no remotes are configured, summon the wizard
-	available := rc_config.FileSections()
-	if len(available) == 0 {
+	if remote == "" {
 		if unattended {
-			return "", fmt.Errorf("no remote exists")
+			return "", fmt.Errorf("no remote specified")
+		} else {
+			logger.Warn("You did not specify a remote destination.")
+			return chooseRemote(), nil
 		}
+	}
 
-		logger.Info("You don't have any remote configured.")
-		name := rc_config.NewRemoteName()
-		err := rc_config.NewRemote(ctx, name)
+	// If remote is an absolute path, use local backend
+	if filepath.IsAbs(remote) {
+		absPath, err := filepath.Abs(remote)
 		if err != nil {
 			return "", err
 		}
-		return name, nil
+		return absPath, nil
 	}
 
+	// Remote was specified by user
+	definedRemotes := rc_config.FileSections()
+	noRemotes := len(definedRemotes) == 0
+
 	// Check if specified remote is defined in rclone's config
-	if remote != "" {
-		logger.Debugf("Validating remote: %s", remote)
-		for i, r := range available {
+	isDefined := func(rem string) bool {
+		logger.Debugf("Validating remote: %s", rem)
+		for i, r := range definedRemotes {
 			logger.Debugf("%d: %s", i+1, r)
-			if r == remote {
-				return r, nil
+			if r == rem {
+				return true
+			}
+		}
+		return false
+	}
+
+	// If specified remote exists, return it
+	if isDefined(remote) {
+		return remote, nil
+	}
+
+	// At this point, the specified remote doesn't exist
+	if unattended {
+		// Nobody is there to choose, can only use local backend
+		if noRemotes {
+			// User has no remotes
+			logger.Debug("No remotes defined: using local backend")
+		} else {
+			// User has remotes, but can't choose
+			logger.Infof("The specified remote doesn't exist: %s", remote)
+			ShowRcloneConfigPath()
+		}
+		return "", nil
+	} else {
+		// User is there to choose
+		if noRemotes {
+			// But has no remotes
+			logger.Info("You don't have any remote configured.")
+			if b := booleanChoice("Would you like to create one now?", unattended); b {
+				name := rc_config.NewRemoteName()
+				err := rc_config.NewRemote(ctx, name)
+				if err != nil {
+					return "", err
+				}
+				return name, nil
+			} else {
+				logger.Info("Then we can only use the local backend.")
+				return "", nil
+			}
+		} else {
+			// User has defined other remotes, ask to choose one
+			logger.Warnf("The specified remote doesn't exist: %s", remote)
+			return chooseRemote(), nil
+		}
+	}
+}
+
+func chooseRemote() string {
+	var c string
+	for c == "" {
+		c = rc_config.ChooseRemote()
+	}
+	return c
+}
+
+func booleanChoice(question string, unattended bool) bool {
+	if unattended {
+		logger.Info("No user no choice lol")
+		return false
+	} else {
+		for {
+			logger.Info(question)
+			logger.Info("name> ")
+			answer := strings.ToLower(rc_config.ReadLine())
+
+			switch {
+			case answer == "y" || answer == "yes":
+				return true
+			case answer == "n" || answer == "no":
+				return false
+			default:
+				continue
 			}
 		}
 	}
+}
 
-	// Found configured remotes, but specified one is either not among them or null
-	if unattended {
-		logger.Debug("Session is non-interactive: picking first available remote destination.")
-		return available[0], nil
-	} else {
-		if remote != "" {
-			logger.Warnf("The specified remote doesn't exist: %s", remote)
+func ShowRcloneConfigPath() {
+	if configPath := rc_config.GetConfigPath(); configPath != "" {
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			logger.Debug("The configuration file for rclone doesn't exist, but it will use this path:")
 		} else {
-			logger.Error("You haven't specified a remote.")
+			logger.Debug("Check rclone's configuration at:")
 		}
-		var chosen string
-		for chosen == "" {
-			chosen = rc_config.ChooseRemote()
-		}
-		return chosen, nil
+		logger.Debugf("%s\n", configPath)
+	} else {
+		// logger.Info("Configuration is in memory only")
 	}
 }
