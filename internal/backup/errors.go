@@ -98,6 +98,7 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 		}
 
 		// Append upload errors
+		templ := "%d° | %s\n"
 		if failedTransfers > 0 {
 			transferFailRate := int8(float32(failedTransfers) / float32(cap(errCh)) * 100)
 			logger.Debugf("Transfers failed: %d/%d (%d%%)\n", failedTransfers, cap(errCh), transferFailRate)
@@ -110,7 +111,7 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 				logger.Debug(str)
 			}
 			for i, err := range transferErrors {
-				str := fmt.Sprintf("%d° | %s\n", i+1, err.Localize(langs...))
+				str := fmt.Sprintf(templ, i+1, err.Localize(langs...))
 				status.WriteString(str)
 				logger.Debug(str)
 			}
@@ -126,7 +127,7 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 			logger.Debug(str)
 
 			for i, err := range preErrors {
-				s := fmt.Sprintf("%d° | %s\n", i+1, err.Localize(langs...))
+				s := fmt.Sprintf(templ, i+1, err.Localize(langs...))
 				status.WriteString(s)
 				logger.Debug(s)
 			}
@@ -142,7 +143,7 @@ func getStatus(errCh chan BackupError, preErrCh chan BackupError, postErrCh chan
 			logger.Debug(str)
 
 			for i, err := range postErrors {
-				s := fmt.Sprintf("%d° | %s", i+1, err.Localize(langs...))
+				s := fmt.Sprintf(templ, i+1, err.Localize(langs...))
 				status.WriteString(s)
 				logger.Debug(s)
 			}
