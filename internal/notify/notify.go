@@ -45,10 +45,10 @@ func NewNotifierFromEnv() (*Notifier, error) {
 func NewNotifier(host string, topic string, token string, healthMonitors ...HealthMonitors) (*Notifier, error) {
 	_, err := url.ParseRequestURI(host)
 	if err != nil {
-		return nil, fmt.Errorf("invalid ntfy.sh host")
+		return nil, fmt.Errorf("invalid ntfy.sh host: %s", err.Error())
 	}
 	if topic == "" {
-		return nil, fmt.Errorf("invalid ntfy.sh topic")
+		return nil, fmt.Errorf("the ntfy.sh topic cannot be null")
 	}
 	logger.Debugf("Notifier: %s/%s", host, topic)
 	return &Notifier{
