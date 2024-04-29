@@ -91,7 +91,6 @@ func Initialize(path string, logLevel zerolog.Level, unattended bool) {
 
 	if output != nil {
 		Logger = zerolog.New(output).Level(Level).With().Timestamp().Logger()
-		Debug("Logging initialized.")
 	} else {
 		fmt.Println("Logging is not enabled.")
 	}
