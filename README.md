@@ -151,8 +151,8 @@ These are the unique strings in the URLs that these services give you to ping.
 
 | Category   | Flag            | Shorthand | Description |
 |------------|-----------------|-----------|-------------|
-| Execution  | --unattended   | -u        | Set this to false to skip user input. Required to run via CRON/automatically. |
-|            | --simulate     | -s        | Set whether the backup session should be simulated. |
+| Execution  | --unattended   | -U        | Set this to false to skip user input. Required to run via CRON/automatically. |
+|            | --simulate     | -S        | Set whether the backup session should be simulated. |
 |            | --debug        |           | Enables debug mode. |
 |            |                |           | |
 | File Paths | --remoteRoot   | -r        | Specify the root backup directory on the remote. |

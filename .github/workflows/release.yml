@@ -6,26 +6,35 @@ name: Go
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
-    paths-ignore:
-      - '.github/**'
-      - 'configs'
+    # run only against tags
+    tags:
+      - 'v*.*.*'
+    #branches: [ "main" ]
+    #paths-ignore:
+    #  - '.github/**'
+    #  - 'configs'
   pull_request:
-    branches: [ "main" ]
+    #branches: [ "main" ]
+
+permissions:
+  contents: write
+  # packages: write
+  # issues: write
+
 
 jobs:
 
   release:
     name: Release
     strategy:
-      # Default is true, cancels jobs for other platforms in the matrix if one fails
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-        go: [ '1.21', '1.22' ]
-    runs-on: ${{ matrix.os }}
+        go: [ '1.22' ]
+
+    runs-on: ubuntu-latest
     
     steps:
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -35,6 +44,9 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go }}
+
+    - name: Force fetch upstream tags
+      run: git fetch --tags --force
 
     - name: Print Go version and environment
       id: vars
@@ -49,6 +61,18 @@ jobs:
         echo "version_tag=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
         echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
+        # Parse semver
+        TAG=${GITHUB_REF/refs\/tags\//}
+        SEMVER_RE='[^0-9]*\([0-9]*\)[.]\([0-9]*\)[.]\([0-9]*\)\([0-9A-Za-z\.-]*\)'
+        TAG_MAJOR=`echo ${TAG#v} | sed -e "s#$SEMVER_RE#\1#"`
+        TAG_MINOR=`echo ${TAG#v} | sed -e "s#$SEMVER_RE#\2#"`
+        TAG_PATCH=`echo ${TAG#v} | sed -e "s#$SEMVER_RE#\3#"`
+        TAG_SPECIAL=`echo ${TAG#v} | sed -e "s#$SEMVER_RE#\4#"`
+        echo "tag_major=${TAG_MAJOR}" >> $GITHUB_OUTPUT
+        echo "tag_minor=${TAG_MINOR}" >> $GITHUB_OUTPUT
+        echo "tag_patch=${TAG_PATCH}" >> $GITHUB_OUTPUT
+        echo "tag_special=${TAG_SPECIAL}" >> $GITHUB_OUTPUT
+
     - name: Cache Go dependencies
       uses: actions/cache@v4
       with:
@@ -59,16 +83,30 @@ jobs:
           ~\AppData\Local\go-build
         key: ${{ runner.os }}-go-${{ matrix.go }}-${{ hashFiles('go.sum') }}
 
-    #- name: Validate commits and tag signatures
-    #  run: |        
-    #    curl 'https://github.com/0x07cf-dev.gpg' | gpg --import
-    #    echo "Verifying the tag: ${{ steps.vars.outputs.version_tag }}"
-    #    git verify-tag "${{ steps.vars.outputs.version_tag }}" || exit 1
+    - name: Validate commits and tag signatures
+      run: |      
+        # Enable SSH verification
+        git config --global gpg.format ssh
+        git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
 
-    - name: Build
-      run: |
-        go build -v ./...
+        # Import my public SSH keys (and prepend email)
+        mkdir -p ~/.ssh
+        curl -sSL "https://github.com/0x07cf-dev.keys" | awk '{print "0x07cf@pm.me", $0}' > ~/.ssh/allowed_signers
+        printf "Authorized signers:\n$(cat ~/.ssh/allowed_signers)\n"
 
-    - name: Test
+        echo "Verifying the tag: ${{ steps.vars.outputs.version_tag }}"
+        git verify-tag "${{ steps.vars.outputs.version_tag }}" || exit 1
+
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v5
+      with:
+        distribution: goreleaser
+        version: latest
+        args: release --clean
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ steps.vars.outputs.version_tag }}
+
+    - name: Cleanup
       run: |
-        go test -v ./...
+        rm -rf ~/.ssh/*
