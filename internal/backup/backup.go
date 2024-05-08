@@ -219,8 +219,8 @@ func (session *BackupSession) Backup() {
 
 func (session *BackupSession) Heartbeat(endpoint string, withLog bool) {
 	if session.Notifier != nil {
-		if !session.Opts.Unattended {
-			logger.Debugf("Session is non-interactive: heartbeat will not be sent. %v", session.Notifier.HealthMonitors)
+		if session.Opts.Simulate || !session.Opts.Unattended {
+			logger.Debugf("Session is interactive: heartbeat will not be sent. %v", session.Notifier.HealthMonitors)
 			return
 		}
 		resp, err := session.Notifier.SendHeartbeats(endpoint, withLog)

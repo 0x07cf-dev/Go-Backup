@@ -4,3 +4,4 @@ build.bat
 configs/
 .go-backup.json
 *.log
+dist/
