@@ -3,7 +3,6 @@ package backup
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -13,10 +12,10 @@ import (
 	"github.com/0x07cf-dev/go-backup/internal/logger"
 	"github.com/0x07cf-dev/go-backup/internal/notify"
 
-	//_ "github.com/rclone/rclone/backend/drive"
-	//_ "github.com/rclone/rclone/backend/dropbox"
+	_ "github.com/rclone/rclone/backend/drive"
+	_ "github.com/rclone/rclone/backend/dropbox"
 	_ "github.com/rclone/rclone/backend/local"
-	//_ "github.com/rclone/rclone/backend/s3"
+	_ "github.com/rclone/rclone/backend/s3"
 	_ "github.com/rclone/rclone/backend/webdav"
 )
 
@@ -244,7 +243,7 @@ func (session *BackupSession) NotifyStatus(status string, statusTags ...string) 
 		msgTags = append(msgTags, statusTags...)
 		msgTags = append(msgTags, session.Machine.Hostname, session.Notifier.Topic)
 
-		resp, err := session.Notifier.Send(msgTitle, status, msgTags, notify.WithClickUrl(&url.URL{Host: session.Notifier.Host}))
+		resp, err := session.Notifier.Send(msgTitle, status, msgTags) //, notify.WithClickUrl(&url.URL{Host: session.Notifier.Host}))
 		if err != nil {
 			logger.Errorf("Error sending status notification: %s", err)
 		} else {

@@ -60,4 +60,5 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
-      - '^ci:'
+      - "^ci:"
+      - "^chore:"

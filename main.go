@@ -18,6 +18,13 @@ package main
 
 import "github.com/0x07cf-dev/go-backup/cmd"
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
+	cmd.SetVersionInfo(version, commit, date)
 	cmd.Execute()
 }

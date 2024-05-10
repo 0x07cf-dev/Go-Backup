@@ -69,7 +69,7 @@ func (notifier *Notifier) SendHeartbeats(endpoint string, withLog bool) (string,
 		if withLog && monitorParams[mon].Method == "POST" {
 			file, err := os.Open(logger.LogPath)
 			if err != nil {
-				logger.Errorf("Error opening log file: %s", err.Error())
+				logger.Errorf("Notifier: error opening log file: %s", err.Error())
 			}
 			defer file.Close()
 			buf.ReadFrom(file)
@@ -91,6 +91,7 @@ func (notifier *Notifier) SendHeartbeats(endpoint string, withLog bool) (string,
 	}
 
 	// Collect errors
+	close(errCh)
 	var errStrings []string
 	for err := range errCh {
 		errStrings = append(errStrings, err.Error())
@@ -121,7 +122,7 @@ func (notifier *Notifier) SendMessage(message *Message) (string, error) {
 		headers["Authorization"] = "Bearer " + notifier.Token
 	}
 
-	resp, err := httpPost(notifier.Host, bytes.NewBuffer(jsonData), 10, 5, headers)
+	resp, err := httpPost(notifier.Host, bytes.NewBuffer(jsonData), 30, 5, headers)
 	if err != nil {
 		return "", err
 	}
@@ -147,9 +148,11 @@ func httpRequest(method string, url string, body *bytes.Buffer, timeout int, ret
 	}
 
 	// Retry until request succeeds or exceeds max attempts
+	var lastErr error
 	for i := 0; i < retries; i++ {
 		req, err := http.NewRequest(method, url, body)
 		if err != nil {
+			logger.Errorf("Notifier: Attempt %d: error creating request: %v", i+1, err)
 			return nil, err
 		}
 
@@ -158,21 +161,31 @@ func httpRequest(method string, url string, body *bytes.Buffer, timeout int, ret
 			req.Header.Set(k, v)
 		}
 
+		logger.Debugf("Notifier: Attempt %d: sending request to '%s'", i+1, url)
+
+		// Make the HTTP request
 		resp, err := client.Do(req)
 		if err != nil {
-			return nil, err
+			logger.Errorf("Attempt %d: error doing request: %v", i+1, err)
+			lastErr = err
+			time.Sleep(1 * time.Second)
+			continue
 		}
+
+		// Log response status code
+		logger.Debugf("Notifier: Attempt %d: response status: %s", i+1, resp.Status)
 
 		// Success
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			return resp, nil
 		}
 
-		// Failure
+		// Log failure details
+		logger.Errorf("Notifier: Attempt %d: unsuccessful response; status code: %d", i+1, resp.StatusCode)
 		resp.Body.Close()
 
 		// Wait before retrying
 		time.Sleep(1 * time.Second)
 	}
-	return nil, fmt.Errorf("maximum attempts exceeded")
+	return nil, fmt.Errorf("maximum attempts exceeded, last error: %v", lastErr)
 }
