@@ -68,7 +68,7 @@ func Initialize(path string, logLevel zerolog.Level, unattended bool) {
 			}
 			return cw
 		} else {
-			return nil
+			return os.Stdout
 		}
 	}
 
@@ -76,17 +76,9 @@ func Initialize(path string, logLevel zerolog.Level, unattended bool) {
 	consoleWriter := getConsoleWriter()
 
 	if fileWriter != nil {
-		if consoleWriter != nil {
-			output = io.MultiWriter(consoleWriter, fileWriter)
-		} else {
-			output = fileWriter
-		}
+		output = io.MultiWriter(consoleWriter, fileWriter)
 	} else {
-		if consoleWriter != nil {
-			output = consoleWriter
-		} else {
-			output = nil
-		}
+		output = consoleWriter
 	}
 
 	if output != nil {

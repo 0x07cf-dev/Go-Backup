@@ -91,6 +91,7 @@ func (notifier *Notifier) SendHeartbeats(endpoint string, withLog bool) (string,
 	}
 
 	// Collect errors
+	close(errCh)
 	var errStrings []string
 	for err := range errCh {
 		errStrings = append(errStrings, err.Error())

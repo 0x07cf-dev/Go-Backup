@@ -50,13 +50,8 @@ var debug bool
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "go-backup",
-	Short: "Simple backup utility",
-	Long: `Go-Backup is a simple backup utility written in Go that uses rclone to transfer files to a remote destination.
-
-It follows a .json configuration in which you can define custom behaviour for each device you run it on.
-You can specify which directories and/or files to transfer, along with pre and/or post-transfer commands to be executed on the machine.
-
-It can optionally be configured to send status notifications to the user via [ntfy.sh](https://ntfy.sh/app), and/or heartbeat signals to external uptime monitoring services in order to keep track of non-interactive executions.`,
+	Short: "Simple command line backup utility",
+	Long:  `Go-Backup is a simple command line utility written in Go that leverages [rclone](https://rclone.org) to transfer files to cloud storage.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
