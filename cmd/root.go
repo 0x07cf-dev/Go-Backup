@@ -39,6 +39,7 @@ var remoteRoot string
 var configFile string
 var envFile string
 var logFile string
+var logLevel string
 
 var language string
 var langFile string
@@ -46,6 +47,14 @@ var langFile string
 var unattended bool
 var simulate bool
 var debug bool
+
+var rcloneIgnoreChecksum bool
+var rcloneMultiThreadSet bool
+var rcloneMultiThreadStreams int
+var rcloneNoTraverse bool
+var rcloneNoUpdateModTime bool
+var rcloneSizeOnly bool
+var rcloneProgress bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -87,11 +96,12 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVarP(&remoteRoot, "remoteRoot", "r", "", "root backup directory on the remote")
+	rootCmd.PersistentFlags().StringVarP(&remoteRoot, "root", "r", "", "root backup directory on the remote")
 
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (defaults are .go-backup.json; .configs/.go-backup.json; $HOME/.go-backup.json)")
-	rootCmd.PersistentFlags().StringVarP(&envFile, "envFile", "e", "", "environment file")
-	rootCmd.PersistentFlags().StringVarP(&logFile, "logFile", "o", "go-backup.log", "output log file")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (defaults are .go-backup.json; configs/.go-backup.json; $HOME/.go-backup.json)")
+	rootCmd.PersistentFlags().StringVarP(&envFile, "env-file", "e", "", "environment file (if none or not found, will load all variables with the prefix 'ntfy_')")
+	rootCmd.PersistentFlags().StringVarP(&logFile, "log-file", "o", "go-backup.log", "set the output logging file")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "set the minimum logging level (debug, info, warn, error, fatal)")
 
 	rootCmd.PersistentFlags().StringVarP(&language, "lang", "l", "en", "one or more languages")
 	rootCmd.PersistentFlags().StringVar(&langFile, "langFile", "", "custom language file, must end with .*.toml")
@@ -103,15 +113,24 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.PersistentFlags().BoolVar(&rcloneIgnoreChecksum, "ignore-checksum", false, "")
+	rootCmd.PersistentFlags().BoolVar(&rcloneMultiThreadSet, "multi-thread-set", true, "")
+	rootCmd.PersistentFlags().IntVar(&rcloneMultiThreadStreams, "multi-thread-streams", 4, "")
+
+	rootCmd.PersistentFlags().BoolVar(&rcloneNoTraverse, "no-traverse", false, "")
+	rootCmd.PersistentFlags().BoolVar(&rcloneNoUpdateModTime, "no-update-modtime", false, "")
+
+	rootCmd.PersistentFlags().BoolVar(&rcloneSizeOnly, "size-only", false, "")
+	rootCmd.PersistentFlags().BoolVar(&rcloneProgress, "progress", false, "")
 }
 
 func initConfig() {
 	ctx = context.Background()
 
 	// Initialize logging
-	logLevel := logger.InfoLevel
+	//logLevel := logger.InfoLevel
 	if debug {
-		logLevel = logger.DebugLevel
+		logLevel = "debug"
 	}
 	logger.Initialize(logFile, logLevel, unattended)
 
@@ -195,6 +214,17 @@ func initConfig() {
 	logger.Debugf("Log file: '%s'", logFile)
 	logger.Debugf("Language: '%s'  |  Custom lang file: %s", language, langFile)
 	logger.Debugf("----------------------------------------------------------------")
+
+	// Configure rclone
+	config.ConfigureRclone(ctx, config.RcloneConfig{
+		IgnoreChecksum:     rcloneIgnoreChecksum,
+		MultiThreadSet:     rcloneMultiThreadSet,
+		MultiThreadStreams: rcloneMultiThreadStreams,
+		NoTraverse:         rcloneNoTraverse,
+		NoUpdateModTime:    rcloneNoUpdateModTime,
+		Progress:           rcloneProgress,
+		SizeOnly:           rcloneSizeOnly,
+	}, logLevel)
 }
 
 func loadEnvFile(path string) error {

@@ -24,8 +24,19 @@ const (
 	FatalLevel = zerolog.FatalLevel
 )
 
-func Initialize(path string, logLevel zerolog.Level, unattended bool) {
-	Level = logLevel
+func Initialize(path string, level string, unattended bool) {
+	switch {
+	case level == "debug":
+		Level = zerolog.DebugLevel
+	case level == "warn" || level == "warning":
+		Level = zerolog.WarnLevel
+	case level == "error":
+		Level = zerolog.ErrorLevel
+	case level == "fatal" || level == "critical":
+		Level = zerolog.FatalLevel
+	default:
+		Level = zerolog.InfoLevel
+	}
 
 	// Create a file writer if a log file path is provided
 	var fileWriter io.Writer

@@ -105,16 +105,21 @@ func GetCurrentMachine() (*Machine, error) {
 	return current, nil
 }
 
+type RcloneConfig struct {
+	IgnoreChecksum     bool
+	MultiThreadSet     bool
+	MultiThreadStreams int
+	NoTraverse         bool
+	NoUpdateModTime    bool
+	Progress           bool
+	SizeOnly           bool
+}
+
 func AsValidRemote(ctx context.Context, remote string, unattended bool) (string, error) {
 	// Configure rclone
 	var once sync.Once
 	once.Do(func() {
 		rc_configfile.Install()
-		// Silence, rclone!
-		conf := rc_fs.GetConfig(ctx)
-		conf.LogLevel = rc_fs.LogLevelWarning
-		conf.Progress = true
-		conf.MultiThreadSet = true
 	})
 
 	if remote == "" {
@@ -222,6 +227,32 @@ func booleanChoice(question string, unattended bool) bool {
 	}
 }
 
+func ConfigureRclone(ctx context.Context, config RcloneConfig, logLevel string) {
+	var rcloneLogLevel rc_fs.LogLevel
+	switch {
+	case logLevel == "debug":
+		rcloneLogLevel = rc_fs.LogLevelDebug
+	case logLevel == "warn" || logLevel == "warning":
+		rcloneLogLevel = rc_fs.LogLevelWarning
+	case logLevel == "error":
+		rcloneLogLevel = rc_fs.LogLevelError
+	case logLevel == "fatal" || logLevel == "critical":
+		rcloneLogLevel = rc_fs.LogLevelCritical
+	default:
+		rcloneLogLevel = rc_fs.LogLevelInfo
+	}
+
+	conf := rc_fs.GetConfig(ctx)
+	conf.LogLevel = rcloneLogLevel
+	conf.IgnoreChecksum = config.IgnoreChecksum
+	conf.MultiThreadSet = config.MultiThreadSet
+	conf.MultiThreadStreams = config.MultiThreadStreams
+	conf.NoTraverse = config.NoTraverse
+	conf.NoUpdateModTime = config.NoUpdateModTime
+	conf.Progress = config.Progress
+	conf.SizeOnly = config.SizeOnly
+}
+
 func ShowRcloneConfigPath() {
 	if configPath := rc_config.GetConfigPath(); configPath != "" {
 		if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -231,6 +262,13 @@ func ShowRcloneConfigPath() {
 		}
 		logger.Debugf("%s\n", configPath)
 	} else {
-		// logger.Info("Configuration is in memory only")
+		logger.Info("Configuration is in memory only")
 	}
+}
+
+func ShowRcloneConfig(showPath bool) {
+	if showPath {
+		ShowRcloneConfigPath()
+	}
+	rc_config.ShowConfig()
 }
