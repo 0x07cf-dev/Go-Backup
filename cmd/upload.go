@@ -21,11 +21,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TODO uploadCmd represents the upload command
 var uploadCmd = &cobra.Command{
-	Use:   "upload",
-	Short: "Transfers from the machine to the remote",
-	Args:  remoteArg,
+	Use:     "upload",
+	Short:   "Transfers from the machine to the remote",
+	Args:    remoteArg,
+	Aliases: []string{"up"},
 	Run: func(cmd *cobra.Command, args []string) {
 		session := backup.NewSession(ctx,
 			backup.WithRemote(remoteDest),

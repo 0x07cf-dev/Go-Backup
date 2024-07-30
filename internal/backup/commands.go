@@ -31,8 +31,6 @@ func executeCmds(errCh chan BackupError, commands []string, output bool) {
 	// Reset context
 	cmdContext.CWD, _ = os.Getwd()
 	cmdContext.Env = os.Environ()
-	logger.Debugf("Working directory: '%s'", cmdContext.CWD)
-	logger.Debugf("Environment: %v", cmdContext.Env)
 
 	for i, command := range commands {
 		ordinal := i + 1

@@ -115,6 +115,7 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 
 		// Upload
 		if !simulate {
+			logger.Debugf("About to process: '%s' ---> '%s'", path, remotePath)
 			if err = rc_sync.CopyDir(session.context,
 				destFs, // Upload dir destination: remoteRoot/hostname/sourceFileName.any
 				srcFs,  // Upload dir source: user-defined
@@ -123,10 +124,10 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 				errCh <- UploadError.Error(path, err.Error())
 				return
 			} else {
-				logger.Infof("Upload dir: '%s' ---> '%s'", path, remotePath)
+				logger.Infof("Uploading: '%s' ---> '%s'", path, remotePath)
 			}
 		} else {
-			logger.Infof("Would upload dir: '%s' ---> '%s'", path, remotePath)
+			logger.Infof("Simulating: '%s' ---> '%s'", path, remotePath)
 		}
 	} else {
 		// Upload file to remote
@@ -150,6 +151,7 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 
 		// Upload
 		if !simulate {
+			logger.Debugf("About to process: '%s' ---> '%s'", path, remotePath)
 			if err = rc_ops.CopyFile(
 				session.context,
 				destFs, // Upload file destination: remoteRoot/hostname/sourceFileName.any
@@ -160,10 +162,10 @@ func (session *BackupSession) uploadPath(path string, wg *sync.WaitGroup, errCh 
 				errCh <- UploadError.Error(path, err.Error())
 				return
 			} else {
-				logger.Infof("Upload file: '%s' ---> '%s'", path, remotePath)
+				logger.Infof("Uploading: '%s' ---> '%s'", path, remotePath)
 			}
 		} else {
-			logger.Infof("Would upload file: '%s' ---> '%s'", path, remotePath)
+			logger.Infof("Simulating: '%s' ---> '%s'", path, remotePath)
 		}
 	}
 }
