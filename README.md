@@ -6,7 +6,13 @@ It uses a JSON configuration file in which you can define custom behavior for mu
 
 To keep track of unattended executions, it can be configured to send the user status notifications and/or signals to external uptime monitoring services.
 
-###### This is how I chose to learn Go. You can achieve the same with a script and rclone itself.
+
+## Disclaimer
+### This is how I chose to learn Go. You can achieve much more with a simple bash script and rclone itself.
+
+This is a naive and rudimentary solution designed as a learning experience. It lacks advanced features such as version control and comprehensive error handling. The project is the result of my first experience with Golang and is not intended to be used in production environments. As such, it **will not meet the requirements of more complex backup scenarios**.
+
+Please use already established backup solutions for your critical data management needs. This project is provided as-is, with no guarantees of suitability or reliability.
 
 ## Install
 ### 📋 Requirements
@@ -160,25 +166,3 @@ These are the unique strings in the URLs that these services give you to ping.
 | Other      | --logFile      | -o        | Path to the log file. |
 
 
-## Disclaimer
-
-Please note that this is a naive and rudimentary solution designed for my small-scale need. It lacks advanced features such as version control and comprehensive error handling.
-
-This project is the result of my limited experience and is not intended to be a robust or feature-rich solution. As such, it may not meet the requirements of more complex backup scenarios.
-
-Please consider using already established backup solutions for your critical data management needs. This project is provided as-is, with no guarantees of suitability or reliability.
-
-I started this project because:
-- I needed to upgrade my bash script that achieved the same, but was becoming nightmarish to maintain.
-- I am learning Go, so don't expect high quality code. It is what it is. 😞
-
-
-## Contributing
-
-Contributions are welcome! Feel free to submit issues or pull requests.
-
-
-#### Planned:
-- Interactive configuration
-
----
